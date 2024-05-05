@@ -9,6 +9,35 @@ import numpy as np
 import pygame as pg
 
 
+def random_hemisphere_sample(normal):
+    x, y, z = np.random.randn(3)
+    nd = Vec3(x, y, z)
+    if nd.dot(normal) < 0:
+        return -nd
+    return nd
+
+
+def lerp(v1, v2, t):
+    return v1 + (v2 - v1) * t
+
+
+def quadratic_formula(a, b, c):
+    return (-b + (b**2 - 4 * a * c) ** 0.5) / (2 * a), (
+        -b - (b**2 - 4 * a * c) ** 0.5
+    ) / (2 * a)
+
+
+def smoothstep(v, minv, maxv):
+    if v < minv:
+        return 0
+    elif v > maxv:
+        return 1
+
+    v = (v - minv) / (maxv - minv)
+
+    return v * v * (3 - 2 * v)
+
+
 class Vec3(pg.Vector3):
     def __init_subclass__(cls):
         return super().__init_subclass__()
@@ -18,25 +47,27 @@ class Vec3(pg.Vector3):
 
 
 class Camera:
-    def __init__(self, pos, fov, lookat, dof_strength = 0, dof_dist = 1):
+    def __init__(self, pos, fov, lookat, dof_strength=0, dof_dist=1):
         self.pos = pos
         self.fov = fov
         self.forward = (lookat - self.pos).normalize()
         self.right = Vec3(0, 1, 0).cross(self.forward)
         self.up = self.forward.cross(self.right)
         self.d = 1 / np.tan(fov / 2)
-        
+
         self.dof_strength = dof_strength
         self.dof_dist = dof_dist
 
     def get_ray(self, u, v):
         ray_dir = (u * self.right + v * self.up + self.forward * self.d).normalize()
         dof_target = ray_dir * self.dof_dist + self.pos
-        ray_pos = self.pos + self.right * ((random.random() * 2 - 1) * self.dof_strength) +  self.up * ((random.random() * 2 - 1) * self.dof_strength)
-        ray_dir = (dof_target - ray_pos).normalize()
-        return Ray(
-            ray_pos, ray_dir
+        ray_pos = (
+            self.pos
+            + self.right * ((random.random() * 2 - 1) * self.dof_strength)
+            + self.up * ((random.random() * 2 - 1) * self.dof_strength)
         )
+        ray_dir = (dof_target - ray_pos).normalize()
+        return Ray(ray_pos, ray_dir)
 
 
 class Material:
@@ -84,39 +115,39 @@ class Mesh(Object):
         super().__init__(material, name)
         self.points = points
         self.tris = faces
-        
+
         self.origin = Vec3(0)
         self.scale = Vec3(1)
         self.rotation = Vec3(0)
-        
+
         self.transformed_points = self.get_transformed_vertices()
-        
+
     def get_scaled_vertices(self, points):
         return [p.prod(self.scale) for p in points]
-    
+
     def get_translated_vertices(self, points):
         return [p + self.origin for p in points]
-        
+
     def get_rotated_vertices(self):
         return self.points
-        
+
     def get_transformed_vertices(self):
         vertices = self.get_scaled_vertices(self.points)
         # vertices = self.get_rotated_vertices(vertices)
         vertices = self.get_translated_vertices(vertices)
         return vertices
-    
+
     def update_transformed_vertices(self):
         self.transformed_points = self.get_transformed_vertices()
 
     def set_scale(self, scale):
         self.scale = scale
         self.update_transformed_vertices()
-        
+
     def set_origin(self, origin):
         self.origin = origin
         self.update_transformed_vertices()
-    
+
     def set_rotation(self, rotation):
         self.update_transformed_vertices()
 
@@ -225,20 +256,25 @@ class Sphere(Object):
     def get_normal(self, pos):
         return (pos - self.pos).normalize()
 
+
 class SimplePlane(Object):
     def __init__(self, material, height, name=None):
         super().__init__(material, name)
         self.height = height
-        
+
     def intersect(self, ray):
         hit_info = HitInfo()
         y_diff = ray.origin.y - self.height
-        if not (y_diff > 0 and ray.direction.y < 0) and not (y_diff < 0 and ray.direction.y > 0):
+        if not (y_diff > 0 and ray.direction.y < 0) and not (
+            y_diff < 0 and ray.direction.y > 0
+        ):
             hit_info.hit = False
             return hit_info
 
-        hit_info.hit = True            
-        hit_info.hit_distance = abs(y_diff / ray.direction.y * ray.direction.xz.magnitude())
+        hit_info.hit = True
+        hit_info.hit_distance = abs(
+            y_diff / ray.direction.y * ray.direction.xz.magnitude()
+        )
         hit_info.hit_normal = Vec3(0, 1, 0)
         hit_info.hit_obj = self
         hit_info.hit_pos = ray.origin + ray.direction * hit_info.hit_distance
@@ -246,6 +282,7 @@ class SimplePlane(Object):
 
     def get_normal(self, pos):
         return Vec3(0, 1, 0)
+
 
 class Ray:
     def __init__(
@@ -271,241 +308,233 @@ class HitInfo:
         self.hit_distance = hit_distance
 
 
-def smoothstep(v, minv, maxv):
-    if v < minv:
-        return 0
-    elif v > maxv:
-        return 1
+class PostProcessing:
+    ###### POST PROCESSING ######
+    # Post processing pipeline:
+    # 1. Fog
+    # 2. Bloom
+    # 3. Exposure
+    # 4. White Balancing
+    # 5. Contrast
+    # 6. Brightness
+    # 7. Color Filtering
+    # 8. Saturation
+    # 9. Tone Mapping
+    # 9. Gamma Correction
+    def __init__(self, exposure=1, brightness=0, contrast=1, saturation=1, gamma=1):
+        self.exposure = exposure
+        self.brightness = brightness
+        self.contrast = contrast
+        self.saturation = saturation
+        self.gamma = gamma
 
-    v = (v - minv) / (maxv - minv)
+    def process(self, img_arr):
+        processed_img_arr = self.exposure_correction(img_arr)
+        processed_img_arr = self.contrast_and_brightness_correction(processed_img_arr)
+        processed_img_arr = self.saturation_correction(processed_img_arr)
+        processed_img_arr = self.reinhardt_tonemapping(processed_img_arr)
+        processed_img_arr = self.gamma_correction(processed_img_arr)
+        return processed_img_arr
 
-    return v * v * (3 - 2 * v)
+    def greyscale(self, img):
+        return np.dot(img, np.array([0.299, 0.587, 0.114]))
 
+    def exposure_correction(self, img):
+        return img * self.exposure
 
-def random_hemisphere_sample(normal):
-    x, y, z = np.random.randn(3)
-    nd = Vec3(x, y, z)
-    if nd.dot(normal) < 0:
-        return -nd
-    return nd
+    # def white_balancing(img, temp, tint):
+    #     t1 = temp * 10 /6
+    #     t2 = tint * 10 /6
 
-def lerp(v1, v2, t):
-    return v1 + (v2 - v1) * t
+    #     x
 
+    def contrast_and_brightness_correction(self, img):
+        return np.clip((self.contrast * (img - 0.5) + self.brightness + 0.5), 0, 1)
 
-def quadratic_formula(a, b, c):
-    return (-b + (b**2 - 4 * a * c) ** 0.5) / (2 * a), (
-        -b - (b**2 - 4 * a * c) ** 0.5
-    ) / (2 * a)
+    def saturation_correction(self, img):
+        grey = self.greyscale(img)[:, :, None] * np.array([[[1, 1, 1]]])
+        return np.clip((lerp(grey, img, self.saturation)), 0, 1)
 
+    def reinhardt_tonemapping(self, img, a=0.18, saturation=1.0):
+        img = img + 1e-8
+        Lw = self.greyscale(img)
+        Lwa = np.exp(np.mean(np.log(Lw)))  # calculate the global adaptation luminance
+        Lm = a / Lwa * Lw  # calculate the adapted luminance
+        Ld = (
+            Lm * (1 + Lm / (saturation**2)) / (1 + Lm)
+        )  # apply the tonemapping function
+        Ld_norm = Ld / np.max(Ld)  # normalize the output luminance to the range [0, 1]
+        Ld_norm_3d = np.stack(
+            (Ld_norm, Ld_norm, Ld_norm), axis=-1
+        )  # create a 3-channel image from the luminance values
+        output = np.clip(
+            img / Lw[..., None] * Ld_norm_3d, 0, 1
+        )  # apply the tonemapping to each pixel and clip the result to the range [0, 1]
+        return output
 
-def intersect(ray, objects):
-    hit_info = HitInfo(hit=False, hit_distance=float("inf"))
-    for obj in objects:
-        hit_info2 = obj.intersect(ray)
-        if hit_info2.hit:
-            if hit_info2.hit_distance < hit_info.hit_distance:
-                hit_info = hit_info2
-    return hit_info
-
-###### POST PROCESSING ######
-# Post processing pipeline:
-# 1. Fog
-# 2. Bloom
-# 3. Exposure
-# 4. White Balancing
-# 5. Contrast
-# 6. Brightness
-# 7. Color Filtering
-# 8. Saturation
-# 9. Tone Mapping
-# 9. Gamma Correction
-
-
-def greyscale(img):
-    return np.dot(img, np.array([0.299, 0.587, 0.114]))
-
-def exposure_correction(img, exposure):
-    return img * exposure
-
-# def white_balancing(img, temp, tint):
-#     t1 = temp * 10 /6
-#     t2 = tint * 10 /6
-
-#     x 
-
-def contrast_and_brightness_correction(img, contrast, brightness):
-    return np.clip((contrast * (img - 0.5) + brightness + 0.5), 0, 1)
-
-def saturation_correction(img, saturation):
-    grey = greyscale(img)[:, :, None] * np.array([[[1, 1, 1]]])
-    return np.clip((lerp(grey, img, saturation)), 0, 1)
-
-def reinhardt_tonemapping(img, a=0.18, saturation=1.0):
-    Lw = greyscale(img)
-    Lwa = np.exp(np.mean(np.log(Lw)))  # calculate the global adaptation luminance
-    Lm = a / Lwa * Lw  # calculate the adapted luminance
-    Ld = Lm * (1 + Lm / (saturation**2)) / (1 + Lm)  # apply the tonemapping function
-    Ld_norm = Ld / np.max(Ld)  # normalize the output luminance to the range [0, 1]
-    Ld_norm_3d = np.stack(
-        (Ld_norm, Ld_norm, Ld_norm), axis=-1
-    )  # create a 3-channel image from the luminance values
-    output = np.clip(
-        img / Lw[..., None] * Ld_norm_3d, 0, 1
-    )  # apply the tonemapping to each pixel and clip the result to the range [0, 1]
-    return output
-    
-def gamma_correction(img, power=0.5):
-    return np.power(img, power)
+    def gamma_correction(self, img):
+        return np.power(img, self.gamma)
 
 
-# sun_light_dir = Vec3(1, -1, 1).normalize() * -1
-# sun_focus = 50
-# sun_intensity = 5
-# horizon, zenith, ground = (
-#     Vec3(100, 120, 225) / 255,
-#     Vec3(150, 150, 240) / 255,
-#     Vec3(0),
-# )
-# # horizon, zenith, ground = Vec3(0), Vec3(0), Vec3(0)
-# def get_environment(ray):
-#     t = smoothstep(ray.direction.y, 0, 0.4) * 0.35
-#     c = lerp(zenith, horizon, t)
-#     sun = max(0, ray.direction.dot(sun_light_dir)) ** sun_focus * sun_intensity
+class Scene:
+    def __init__(self) -> None:
+        self.objects = []
+        self.camera = Camera(Vec3(0), np.pi / 3, Vec3(0, 0, 1))
+        self.environment_image = None
 
-#     gt = smoothstep(ray.direction.y, -0.01, 0)
-#     # sm = gt >= 1
-#     return lerp(ground, c, gt) + Vec3(sun * gt)
+    def add_object(self, obj):
+        self.objects.append(obj)
 
+    def intersect(self, ray):
+        hit_info = HitInfo(hit=False, hit_distance=float("inf"))
+        for obj in self.objects:
+            hit_info2 = obj.intersect(ray)
+            if hit_info2.hit:
+                if hit_info2.hit_distance < hit_info.hit_distance:
+                    hit_info = hit_info2
+        return hit_info
 
-# def get_environment(ray):
-#     return Vec3(0)
+    def set_environment(self, img):
+        self.environment_image = img
 
-
-environment_image = None
-
-
-# def get_environment(ray):
-#     if environment_image == None:
-#         return Vec3(0)
-#     u, v = 0.5 + math.atan2(ray.direction.z, ray.direction.x) / (2 * np.pi), 1 - (
-#         0.5 + math.asin(ray.direction.y) / np.pi
-#     )
-#     x, y = int(environment_image.get_width() * u), int(
-#         environment_image.get_height() * v
-#     )
-#     c = Vec3(environment_image.get_at((x, y))[0:3]) / 255
-#     return c
-def get_environment(ray):
-    return Vec3(0)
-  
+    def get_environment(self, ray):
+        if self.environment_image == None:
+            return Vec3(0)
+        u, v = 0.5 + math.atan2(ray.direction.z, ray.direction.x) / (2 * np.pi), 1 - (
+            0.5 + math.asin(ray.direction.y) / np.pi
+        )
+        x, y = int(self.environment_image.get_width() * u), int(
+            self.environment_image.get_height() * v
+        )
+        c = Vec3(self.environment_image.get_at((x, y))[0:3]) / 255
+        return c
 
 
-def pixel_color(ray, objects, max_bounces):
-    ray_color = Vec3(1)
-    incoming_light = Vec3(0)
-    for i in range(max_bounces):
-        hit_info = intersect(ray, objects)
-        if hit_info.hit:
-            # return hit_info.hit_obj.material.color
-            ray.origin = hit_info.hit_pos
+class Renderer:
+    def __init__(self, width, height, passes=1):
+        self.WIDTH, self.HEIGHT = width, height
+        self.RES = (width, height)
+        self.ASPECT = height / width
+        self._img_arr = np.zeros(shape=(width, height, 3))
+        self.scene = Scene()
+        self.max_bounces = 5
 
-            # diffuse_dir = (random_hemisphere_sample(hit_info.hit_normal) + hit_info.hit_normal).normalize()
-            specular_dir = ray.direction.reflect(hit_info.hit_normal)
-            diffuse_dir = lerp(random_hemisphere_sample(hit_info.hit_normal), specular_dir, hit_info.hit_obj.material.smoothness).normalize()
-            is_specular = (
-                1
-                if hit_info.hit_obj.material.specular_probability > random.random()
-                else 0
-            )
+        self.break_ = [False]
+        self.passes = [0]
 
-            ray.direction = specular_dir if is_specular else diffuse_dir
+        self.post_processing = PostProcessing()
 
-            emitted_light = (
-                hit_info.hit_obj.material.emission_color
-                * hit_info.hit_obj.material.emission_strength
-            )
-            incoming_light += ray_color.prod(emitted_light)
-            ray_color = ray_color.prod(
-                hit_info.hit_obj.material.specular_color if is_specular else hit_info.hit_obj.material.color,
-            )
-        else:
-            incoming_light += ray_color.prod(get_environment(ray))
-            break
-    return incoming_light
+    @property
+    def img_arr(self):
+        return self._img_arr / (self.passes[0] + 1)
 
+    def reset_image(self):
+        self._img_arr = np.zeros(shape=(self.WIDTH, self.HEIGHT, 3))
 
-def render(arr, objects, camera, max_bounces=3, area=[0, 1, 0, 1], eps=0.01):
-    half_eps = eps / 2
-    WIDTH, HEIGHT = arr.shape[0], arr.shape[1]
-    aspect = HEIGHT / WIDTH
-    for x in range(int(WIDTH * area[0]), int(WIDTH * area[1])):
-        for y in range(int(HEIGHT * area[2]), int(HEIGHT * area[3])):
-            u, v = (x + 0.5) / WIDTH * 2 - 1, (y + 0.5) / HEIGHT * 2 * aspect - aspect
-            ray = camera.get_ray(
-                u + random.random() * half_eps - eps,
-                v + random.random() * half_eps - eps,
-            )
-            arr[x, HEIGHT - y - 1] += pixel_color(
-                ray, objects, max_bounces=max_bounces + 1
-            )
-    return arr
+    def pixel_color(self, ray):
+        ray_color = Vec3(1)
+        incoming_light = Vec3(0)
+        for i in range(self.max_bounces):
+            hit_info = self.scene.intersect(ray)
+            if hit_info.hit:
+                ray.origin = hit_info.hit_pos
 
+                specular_dir = ray.direction.reflect(hit_info.hit_normal)
+                diffuse_dir = lerp(
+                    random_hemisphere_sample(hit_info.hit_normal),
+                    specular_dir,
+                    hit_info.hit_obj.material.smoothness,
+                ).normalize()
+                is_specular = (
+                    1
+                    if hit_info.hit_obj.material.specular_probability > random.random()
+                    else 0
+                )
 
-def render_threaded(
-    grid_width, grid_height, arr, objects, camera, max_bounces, break_, passes
-):
-    while True:
-        if not break_[0]:
-            np.random.seed(np.random.randint(0, 10000))
-            threads = []
-            w = 1 / grid_width
-            h = 1 / grid_height
-            for i in range(grid_width):
-                for j in range(grid_height):
-                    threads.append(
-                        Thread(
-                            target=render,
-                            args=(
-                                arr,
-                                objects,
-                                camera,
-                                max_bounces,
-                                [i * w, (i + 1) * w, j * h, (j + 1) * h],
-                            ),
-                            daemon=True,
+                ray.direction = specular_dir if is_specular else diffuse_dir
+
+                emitted_light = (
+                    hit_info.hit_obj.material.emission_color
+                    * hit_info.hit_obj.material.emission_strength
+                )
+                incoming_light += ray_color.prod(emitted_light)
+                ray_color = ray_color.prod(
+                    (
+                        hit_info.hit_obj.material.specular_color
+                        if is_specular
+                        else hit_info.hit_obj.material.color
+                    ),
+                )
+            else:
+                incoming_light += ray_color.prod(self.scene.get_environment(ray))
+                break
+        return incoming_light
+
+    def _render(self, area=[0, 1, 0, 1]):
+        for x in range(int(self.WIDTH * area[0]), int(self.WIDTH * area[1])):
+            for y in range(int(self.HEIGHT * area[2]), int(self.HEIGHT * area[3])):
+                u, v = (x + 0.5) / self.WIDTH * 2 - 1, (
+                    y + 0.5
+                ) / self.HEIGHT * 2 * self.ASPECT - self.ASPECT
+                ray = self.scene.camera.get_ray(
+                    u,
+                    v,
+                )
+                self._img_arr[x, y] += self.pixel_color(ray)
+        return self._img_arr
+
+    def render(self, area=[0, 1, 0, 1]):
+        t = Thread(target=self._render, args=(area,), daemon=True)
+        t.start()
+
+    def _render_threaded(self, grid_width, grid_height):
+        w = 1 / grid_width
+        h = 1 / grid_height
+        self.passes = [0]
+        self.break_ = [False]
+        while True:
+            if not self.break_[0]:
+                np.random.seed(np.random.randint(0, 10000))
+                threads = []
+                for i in range(grid_width):
+                    for j in range(grid_height):
+                        threads.append(
+                            Thread(
+                                target=self._render,
+                                args=([i * w, (i + 1) * w, j * h, (j + 1) * h],),
+                                daemon=True,
+                            )
                         )
-                    )
 
-            for t in threads:
-                t.start()
+                for t in threads:
+                    t.start()
 
-            for t in threads:
-                t.join()
-            passes[0] += 1
+                for t in threads:
+                    t.join()
+                self.passes[0] += 1
+
+    def render_threaded(self, grid_width, grid_height):
+        t = Thread(
+            target=(self._render_threaded), args=(grid_width, grid_height), daemon=True
+        )
+        t.start()
+
+    def get_img_arr_raw(self):
+        return self.img_arr
+
+    def get_img_arr_post_processed(self):
+        return self.post_processing.process(self.img_arr)
+
+    def get_img_raw(self):
+        return pg.surfarray.make_surface(np.clip(self.img_arr, 0, 1) * 255)
+
+    def get_img_post_processed(self):
+        return pg.surfarray.make_surface(self.get_img_arr_post_processed() * 255)
 
 
-def main():
-    global environment_image
-    pg.init()
-    random.seed(6)
-    WIDTH, HEIGHT = 1080 / 2, 1920 / 2
-    RES = (WIDTH, HEIGHT)
-    PX_RES = 0.5
-    SURF_WIDTH, SURF_HEIGHT = int(WIDTH / PX_RES), int(HEIGHT / PX_RES)
-    print(SURF_WIDTH, SURF_HEIGHT)
-    SURF_RES = (SURF_WIDTH, SURF_HEIGHT)
+def get_scene1():
+    scene = Scene()
 
-    screen = pg.display.set_mode(RES)
-    surface = pg.Surface(SURF_RES)
-    img_arr = np.zeros(shape=(SURF_WIDTH, SURF_HEIGHT, 3), dtype=np.float64)
-    clock = pg.time.Clock()
-
-    # environment_image = pg.image.load("./assets/skyboxes/skybox1.png").convert_alpha()
-    # environment_image = None
-    # environment_image.fill((1, 1, ))
-    
-    # camera = Camera(Vec3(-4.3, 0, 0), np.pi / 2, Vec3(0, 0, 0))
     materials = []
     for i in range(50):
         mat = Material.default_material()
@@ -524,18 +553,7 @@ def main():
             mat.emission_strength = 0
             mat.emission_color = Vec3(random.random(), random.random(), random.random())
         materials.append(mat)
-    
-    # sphere_mat1 = Material.default_material()
-    # sphere_mat1.color = Vec3(0.5, 1, 0.5)
-    # sphere_mat1.emission_strength = 0
-    # sphere_mat1.smoothness = 0.1
-    # sphere_mat1.emission_color = Vec3(1)
-    
-    # sphere_mat2 = Material.default_material()
-    # sphere_mat2.color = Vec3(1, 1, 0.5)
-    # sphere_mat2.emission_strength = 0
-    # sphere_mat2.smoothness = 0.1
-    
+
     big_sphere_mat = Material.default_material()
     big_sphere_mat.color = Vec3(252, 172, 68) / 255
     big_sphere_mat.emission_strength = 1
@@ -543,9 +561,7 @@ def main():
     big_sphere_mat.smoothness = 0
     big_sphere_mat.specular_probability = 0
     big_sphere_mat.specular_color = Vec3(1)
-    # big_sphere_mat.emission_color = Vec3(1)
 
-    
     floor_mat = Material.default_material()
     floor_mat.color = Vec3(0.8, 0.3, 0.3)
     floor_mat.emission_color = Vec3(1)
@@ -553,7 +569,7 @@ def main():
     floor_mat.emission_strength = 0
     floor_mat.smoothness = 0
     floor_mat.specular_probability = 0
-    
+
     horse_mat = Material.default_material()
     horse_mat.color = Vec3(1)
     horse_mat.emission_color = Vec3(1)
@@ -561,7 +577,7 @@ def main():
     horse_mat.emission_strength = 0
     horse_mat.smoothness = 0
     horse_mat.specular_probability = 0
-    
+
     horse = Mesh.load_from_obj_file("./assets/models/obj/chess_horse.obj")[0]
     horse.material = horse_mat
     horse.set_origin(Vec3(0, 0, 50))
@@ -570,69 +586,56 @@ def main():
     objects = [
         SimplePlane(floor_mat, 0),
         Sphere(big_sphere_mat, Vec3(0, 100, 1000), 100),
-        horse
-
-    ] + [Sphere(random.choice(materials), Vec3(6 * (1 if i % 2 == 0 else -1), 3, (i // 2) * 20 + 10), 3) for i in range(0, 100)]
-    # camera = Camera(Vec3(0, 20, -5), np.pi / 3, sum_, dof_dist=5, dof_strength=0)
-    camera = Camera(Vec3(0, 3, 0), np.pi / 10, Vec3(0, 100, 1000), dof_strength=0.5, dof_dist=50)
-    
-    # random.seed(10)
-    # for i in range(30000):
-    #     environment_image.set_at((random.randint(0, 3000), random.randint(0, 3000)), (255, 255, 255))
-    
-    break_ = [False]
-    passes = [0]
-
-    # t = Thread(
-    #     target=render_threaded,
-    #     args=(8, 16, surface_arr, objects, camera, 5, break_, passes),
-    #     daemon=True,
-    # )
-    t = Thread(
-        target=render_threaded,
-        args=(1, 1, img_arr, objects, camera, 5, break_, passes),
-        daemon=True,
+        horse,
+    ] + [
+        Sphere(
+            random.choice(materials),
+            Vec3(6 * (1 if i % 2 == 0 else -1), 3, (i // 2) * 20 + 10),
+            3,
+        )
+        for i in range(0, 10)
+    ]
+    camera = Camera(
+        Vec3(0, 3, 0), np.pi / 10, Vec3(0, 100, 1000), dof_strength=0.001, dof_dist=30
     )
-    t.start()
 
-    sample_num = 50
+    for obj in objects:
+        scene.add_object(obj)
+
+    scene.camera = camera
+    scene.set_environment(pg.image.load("./assets/skyboxes/skybox1.png"))
+
+    return scene
+
+
+def main():
+    pg.init()
+    WIDTH, HEIGHT = 500, 500
+    RES = (WIDTH, HEIGHT)
+    screen = pg.display.set_mode(RES)
+    clock = pg.time.Clock()
+
+    renderer = Renderer(int(WIDTH / 5), int(HEIGHT / 5))
+
+    renderer.scene = get_scene1()
+    renderer.max_bounces = 10
+    renderer.render_threaded(5, 5)
 
     while True:
-        post_processed_img_arr = exposure_correction(img_arr, 1.3)
-        post_processed_img_arr = contrast_and_brightness_correction(post_processed_img_arr, 1, .05)
-        post_processed_img_arr = saturation_correction(post_processed_img_arr, 1.2)
-        post_processed_img_arr = reinhardt_tonemapping(post_processed_img_arr + 1e-4)
-        post_processed_img_arr = gamma_correction(post_processed_img_arr, power=1.1)
-        
-        img = pg.surfarray.make_surface(img_arr * 255)
-        img_post_processed = pg.surfarray.make_surface(post_processed_img_arr * 255)
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
                 sys.exit()
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
-                    break_[0] = not break_[0]
+                    renderer.break_[0] = not renderer.break_[0]
 
-                elif event.key == pg.K_s:
-                    pg.image.save(surface, f"./image@{hash(random.random())}.png")
-
-        scaled_surface = pg.transform.scale(surface, RES)
+        scaled_surface = pg.transform.flip(
+            pg.transform.scale(renderer.get_img_post_processed(), RES), False, True
+        )
         screen.blit(scaled_surface, (0, 0))
 
-        if passes[0] == sample_num - 1:
-            break_[0] = True
-        
-        if passes[0] == sample_num:
-            # surface_arr2 = np.minimum(1, surface_arr / passes) * 255
-            # surface = pg.surfarray.make_surface(surface_arr2)
-            # surface = pg.transform.scale(surface, RES)
-            pg.image.save(pg.surfarray.surface, f"./image@{hash(random.random())}.png")
-            pg.image.save(post_processed_img_arr, f"./image_post_processed@{hash(random.random())}.png")
-            pg.quit()
-            sys.exit()
-
-        pg.display.set_caption(f"Iteration: {passes}, {break_[0]}")
+        pg.display.set_caption(f"Iteration: {renderer.passes[0]}, {renderer.break_[0]}")
 
         pg.display.update()
         clock.tick(60)
