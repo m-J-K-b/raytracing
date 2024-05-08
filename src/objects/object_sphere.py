@@ -4,8 +4,8 @@ from src.util import Vec3, quadratic_formula
 
 
 class Sphere(ObjectBase):
-    def __init__(self, material, pos, radius, name=None):
-        super().__init__(material, name)
+    def __init__(self, material, pos, radius):
+        super().__init__(material)
         self.pos = pos
         self.radius = radius
 

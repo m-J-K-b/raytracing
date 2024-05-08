@@ -5,8 +5,8 @@ from src.util import Vec3
 
 
 class Mesh(ObjectBase):
-    def __init__(self, material, points, faces, name=None):
-        super().__init__(material, name)
+    def __init__(self, material, points, faces):
+        super().__init__(material)
         self.points = points
         self.tris = faces
 

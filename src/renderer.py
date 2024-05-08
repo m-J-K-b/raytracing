@@ -1,4 +1,5 @@
 import random
+import time
 from threading import Thread
 
 import numpy as np
@@ -16,16 +17,23 @@ class Renderer:
         self.ASPECT = height / width
         self._img_arr = np.zeros(shape=(width, height, 3))
         self.scene = Scene()
+
+        self.rendering = False
+        self.rendered_passes = 0
         self.max_bounces = 5
+        self.max_passes = 2
 
-        self.break_ = [False]
-        self.passes = [0]
+        self.output_path = "../renders/"
 
-        self.post_processing = PostProcessing()
+    def save_img(self, path):
+        pg.image.save(
+            pg.transform.flip(self.get_img(), False, True),
+            path,
+        )
 
     @property
     def img_arr(self):
-        return self._img_arr / (self.passes[0] + 1)
+        return self._img_arr / self.rendered_passes
 
     def reset_image(self):
         self._img_arr = np.zeros(shape=(self.WIDTH, self.HEIGHT, 3))
@@ -33,7 +41,7 @@ class Renderer:
     def pixel_color(self, ray):
         ray_color = Vec3(1)
         incoming_light = Vec3(0)
-        for i in range(self.max_bounces):
+        for i in range(self.max_bounces + 1):
             hit_info = self.scene.intersect(ray)
             if hit_info.hit:
                 ray.origin = hit_info.hit_pos
@@ -69,7 +77,7 @@ class Renderer:
                 break
         return incoming_light
 
-    def _render(self, area=[0, 1, 0, 1]):
+    def _render_area(self, area=[0, 1, 0, 1]):
         for x in range(int(self.WIDTH * area[0]), int(self.WIDTH * area[1])):
             for y in range(int(self.HEIGHT * area[2]), int(self.HEIGHT * area[3])):
                 u, v = (x + 0.5) / self.WIDTH * 2 - 1, (
@@ -82,50 +90,69 @@ class Renderer:
                 self._img_arr[x, y] += self.pixel_color(ray)
         return self._img_arr
 
+    def _render(self, area=[0, 1, 0, 1]):
+        while self.rendering and self.rendered_passes < self.max_passes:
+            self.rendered_passes += 1
+            t = Thread(target=self._render_area, args=(area,), daemon=True)
+            t.start()
+            t.join()
+        else:
+            self.finish_render()
+
     def render(self, area=[0, 1, 0, 1]):
+        self.init_render()
         t = Thread(target=self._render, args=(area,), daemon=True)
         t.start()
 
     def _render_threaded(self, grid_width, grid_height):
         w = 1 / grid_width
         h = 1 / grid_height
-        self.passes = [0]
-        self.break_ = [False]
-        while True:
-            if not self.break_[0]:
-                np.random.seed(np.random.randint(0, 10000))
-                threads = []
-                for i in range(grid_width):
-                    for j in range(grid_height):
-                        threads.append(
-                            Thread(
-                                target=self._render,
-                                args=([i * w, (i + 1) * w, j * h, (j + 1) * h],),
-                                daemon=True,
-                            )
+        start = time.time()
+
+        while self.rendering and self.rendered_passes < self.max_passes:
+            self.rendered_passes += 1
+            np.random.seed(np.random.randint(0, 10000))
+            threads = []
+            for i in range(grid_width):
+                for j in range(grid_height):
+                    threads.append(
+                        Thread(
+                            target=self._render_area,
+                            args=([i * w, (i + 1) * w, j * h, (j + 1) * h],),
+                            daemon=True,
                         )
+                    )
 
-                for t in threads:
-                    t.start()
+            for t in threads:
+                t.start()
 
-                for t in threads:
-                    t.join()
-                self.passes[0] += 1
+            for t in threads:
+                t.join()
+        else:
+            end = time.time()
+            print(f"finshed rendering in: {end - start} seconds")
+            self.finish_render()
 
     def render_threaded(self, grid_width, grid_height):
+        self.init_render()
         t = Thread(
             target=(self._render_threaded), args=(grid_width, grid_height), daemon=True
         )
-        t.start()
 
-    def get_img_arr_raw(self):
+        t.start()
+        return t
+
+    def init_render(self):
+        self.reset_image()
+        self.rendered_passes = 0
+        self.rendering = True
+
+    def finish_render(self):
+        self.save_img(self.output_path)
+        self.rendering = False
+
+    def get_img_arr(self):
         return self.img_arr
 
-    def get_img_arr_post_processed(self):
-        return self.post_processing.process(self.img_arr)
-
-    def get_img_raw(self):
+    def get_img(self):
         return pg.surfarray.make_surface(np.clip(self.img_arr, 0, 1) * 255)
-
-    def get_img_post_processed(self):
-        return pg.surfarray.make_surface(self.get_img_arr_post_processed() * 255)

@@ -14,6 +14,7 @@ from src.util import Vec3
 
 def get_scene():
     scene = Scene()
+    random.seed(6)
 
     materials = []
     for i in range(50):
@@ -43,7 +44,7 @@ def get_scene():
     big_sphere_mat.specular_color = Vec3(1)
 
     floor_mat = Material.default_material()
-    floor_mat.color = Vec3(0.8, 0.3, 0.3)
+    floor_mat.color = Vec3(0.8)
     floor_mat.emission_color = Vec3(1)
     floor_mat.specular_color = Vec3(1)
     floor_mat.emission_strength = 0
@@ -51,17 +52,17 @@ def get_scene():
     floor_mat.specular_probability = 0
 
     horse_mat = Material.default_material()
-    horse_mat.color = Vec3(1)
+    horse_mat.color = Vec3(0.7, 0.7, 0.8)
     horse_mat.emission_color = Vec3(1)
     horse_mat.specular_color = Vec3(1)
     horse_mat.emission_strength = 0
-    horse_mat.smoothness = 0
+    horse_mat.smoothness = 0.3
     horse_mat.specular_probability = 0
 
     horse = Mesh.load_from_obj_file("./assets/models/obj/chess_horse.obj")[0]
     horse.material = horse_mat
     horse.set_origin(Vec3(0, 0, 50))
-    horse.set_scale(Vec3(3))
+    horse.set_scale(Vec3(3, 3, 3))
 
     objects = [
         SimplePlane(floor_mat, 0),
@@ -76,7 +77,7 @@ def get_scene():
         for i in range(0, 10)
     ]
     camera = Camera(
-        Vec3(0, 3, 0), np.pi / 10, Vec3(0, 100, 1000), dof_strength=0.001, dof_dist=30
+        Vec3(0, 3, 0), np.pi / 10, Vec3(0, 100, 1000), dof_strength=0.1, dof_dist=50
     )
 
     for obj in objects:

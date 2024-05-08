@@ -1,13 +1,10 @@
 class ObjectBase:
-    OBJECT_NUM = 0
-    object_names = {}
-
-    def __init__(self, material, name=None):
+    def __init__(self, material):
         self.material = material
-        self.name = name
-        if name in self.object_names:
-            self.object_names[name] += 1
-            self.name = name + self.object_names[name]
+
+    def update(self, t):
+        for animation in self.animations:
+            animation.update(t)
 
     def intersect(self, ray):
         raise NotImplementedError()

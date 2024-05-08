@@ -4,8 +4,8 @@ from src.util import Vec3
 
 
 class SimplePlane(ObjectBase):
-    def __init__(self, material, height, name=None):
-        super().__init__(material, name)
+    def __init__(self, material, height):
+        super().__init__(material)
         self.height = height
 
     def intersect(self, ray):
