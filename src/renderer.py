@@ -1,124 +1,124 @@
 import random
-import time
 from threading import Thread
+from typing import List
 
 import numpy as np
-import pygame as pg
 
-from src.post_processing import PostProcessing
+from src.light import Light
+from src.ray import Ray
+from src.render_result import RenderResult
+from src.render_settings import RenderSettings
 from src.scene import Scene
-from src.util import Vec3, lerp, random_hemisphere_sample
+from src.util import (
+    Vec3,
+    fresnel_reflectivity_coefficient,
+    lerp,
+    random_hemisphere_sample,
+    refract,
+)
 
 
 class Renderer:
-    def __init__(self, width, height, passes=1):
-        self.WIDTH, self.HEIGHT = width, height
-        self.RES = (width, height)
-        self.ASPECT = height / width
-        self._img_arr = np.zeros(shape=(width, height, 3))
-        self.scene = Scene()
+    def __init__(self):
+        self.scene: Scene = None
 
-        self.rendering = False
-        self.rendered_passes = 0
-        self.max_bounces = 5
-        self.max_passes = 2
+        self.render_result: RenderResult = None
+        self.render_settings: RenderSettings = None
 
-        self.output_path = "../renders/"
+    def raytrace(self, ray, incoming_light=None, ray_color=None, depth=None):
+        incoming_light = Vec3(0) if not incoming_light else incoming_light
+        ray_color = Vec3(0) if not ray_color else ray_color
+        depth = 0 if not depth else depth
 
-    def save_img(self, path):
-        pg.image.save(
-            pg.transform.flip(self.get_img(), False, True),
-            path,
+        if depth > self.render_settings.MAX_BOUNCES:
+            return Vec3(0)
+
+        hits = self.scene.intersect(ray)
+        if not hits:
+            return incoming_light + ray_color.prod(self.scene.get_environment(ray))
+
+        if hits[0].obj.material.emission_strength > 0:
+            emitted_light = (
+                hits[0].obj.material.color * hits[0].obj.material.emission_strength
+            )
+            incoming_light += ray_color.prod(emitted_light)
+        ray_color = ray_color.prod(hits[0].obj.material.color)
+
+        reflection_direction = ray.direction.reflect(hits[0].normal)
+
+        new_ray_direction = lerp(
+            random_hemisphere_sample(hits[0].normal),
+            reflection_direction,
+            hits[0].obj.material.smoothness,
         )
 
-    @property
-    def img_arr(self):
-        return self._img_arr / self.rendered_passes
+        return self.raytrace(
+            Ray(
+                ray.origin + new_ray_direction * self.render_settings.EPS,
+                new_ray_direction,
+            ),
+            incoming_light=incoming_light,
+            ray_color=ray_color,
+            depth=depth + 1,
+        )
 
-    def reset_image(self):
-        self._img_arr = np.zeros(shape=(self.WIDTH, self.HEIGHT, 3))
-
-    def pixel_color(self, ray):
-        ray_color = Vec3(1)
-        incoming_light = Vec3(0)
-        for i in range(self.max_bounces + 1):
-            hit_info = self.scene.intersect(ray)
-            if hit_info.hit:
-                ray.origin = hit_info.hit_pos
-
-                specular_dir = ray.direction.reflect(hit_info.hit_normal)
-                diffuse_dir = lerp(
-                    random_hemisphere_sample(hit_info.hit_normal),
-                    specular_dir,
-                    hit_info.hit_obj.material.smoothness,
-                ).normalize()
-                is_specular = (
-                    1
-                    if hit_info.hit_obj.material.specular_probability > random.random()
-                    else 0
-                )
-
-                ray.direction = specular_dir if is_specular else diffuse_dir
-
-                emitted_light = (
-                    hit_info.hit_obj.material.emission_color
-                    * hit_info.hit_obj.material.emission_strength
-                )
-                incoming_light += ray_color.prod(emitted_light)
-                ray_color = ray_color.prod(
-                    (
-                        hit_info.hit_obj.material.specular_color
-                        if is_specular
-                        else hit_info.hit_obj.material.color
-                    ),
-                )
-            else:
-                incoming_light += ray_color.prod(self.scene.get_environment(ray))
-                break
-        return incoming_light
-
-    def _render_area(self, area=[0, 1, 0, 1]):
-        for x in range(int(self.WIDTH * area[0]), int(self.WIDTH * area[1])):
-            for y in range(int(self.HEIGHT * area[2]), int(self.HEIGHT * area[3])):
-                u, v = (x + 0.5) / self.WIDTH * 2 - 1, (
+    def _render_area(self, area: List[float] = [0, 1, 0, 1]) -> None:
+        for x in range(
+            int(self.render_settings.WIDTH * area[0]),
+            int(self.render_settings.WIDTH * area[1]),
+        ):
+            for y in range(
+                int(self.render_settings.HEIGHT * area[2]),
+                int(self.render_settings.HEIGHT * area[3]),
+            ):
+                u, v = (x + 0.5) / self.render_settings.WIDTH * 2 - 1, (
                     y + 0.5
-                ) / self.HEIGHT * 2 * self.ASPECT - self.ASPECT
+                ) / self.render_settings.HEIGHT * 2 * self.render_settings.ASPECT - self.render_settings.ASPECT
                 ray = self.scene.camera.get_ray(
                     u,
                     v,
                 )
-                self._img_arr[x, y] += self.pixel_color(ray)
-        return self._img_arr
+                self.render_result.add_to_px(
+                    x, y, self.raytrace(ray, incoming_light=Vec3(0), ray_color=Vec3(1))
+                )
 
-    def _render(self, area=[0, 1, 0, 1]):
-        while self.rendering and self.rendered_passes < self.max_passes:
-            self.rendered_passes += 1
-            t = Thread(target=self._render_area, args=(area,), daemon=True)
-            t.start()
-            t.join()
-        else:
-            self.finish_render()
+    def _render(self) -> None:
+        while self.render_result.rendered_passes < self.render_settings.RENDER_PASSES:
+            self.render_result.rendered_passes += 1
+            self._render_area(self.render_settings.AREA)
+            # np.random.seed(np.random.randint(0, 10000))
 
-    def render(self, area=[0, 1, 0, 1]):
-        self.init_render()
-        t = Thread(target=self._render, args=(area,), daemon=True)
+        self.render_result.finished = True
+
+    def render(self, render_settings: RenderSettings) -> RenderResult:
+        self.init_render(render_settings)
+        t = Thread(target=self._render, daemon=True)
         t.start()
+        return self.render_result
 
-    def _render_threaded(self, grid_width, grid_height):
-        w = 1 / grid_width
-        h = 1 / grid_height
-        start = time.time()
-
-        while self.rendering and self.rendered_passes < self.max_passes:
-            self.rendered_passes += 1
+    def _render_threaded(self, vertical_splits: int, horizontal_splits: int) -> None:
+        w = (
+            self.render_settings.AREA[1] - self.render_settings.AREA[0]
+        ) / vertical_splits
+        h = (
+            self.render_settings.AREA[3] - self.render_settings.AREA[2]
+        ) / horizontal_splits
+        while self.render_result.rendered_passes < self.render_settings.RENDER_PASSES:
+            self.render_result.rendered_passes += 1
             np.random.seed(np.random.randint(0, 10000))
             threads = []
-            for i in range(grid_width):
-                for j in range(grid_height):
+            for i in range(vertical_splits):
+                for j in range(horizontal_splits):
+                    area = [
+                        i * w + self.render_settings.AREA[0],
+                        (i + 1) * w + self.render_settings.AREA[0],
+                        j * h + self.render_settings.AREA[2],
+                        (j + 1) * h + self.render_settings.AREA[2],
+                    ]
                     threads.append(
                         Thread(
                             target=self._render_area,
-                            args=([i * w, (i + 1) * w, j * h, (j + 1) * h],),
+                            args=(area,),
                             daemon=True,
                         )
                     )
@@ -128,31 +128,32 @@ class Renderer:
 
             for t in threads:
                 t.join()
-        else:
-            end = time.time()
-            print(f"finshed rendering in: {end - start} seconds")
-            self.finish_render()
+            self.render_result.save(
+                f"./renders/room_{self.render_settings.WIDTH}x{self.render_settings.HEIGHT}_pass#{self.render_result.rendered_passes}.png"
+            )
+        self.render_result.finished = True
 
-    def render_threaded(self, grid_width, grid_height):
-        self.init_render()
+    def render_threaded(
+        self,
+        render_settings: RenderSettings,
+        vertical_splits: int,
+        horizontal_splits: int,
+    ) -> RenderResult:
+        self.init_render(render_settings)
         t = Thread(
-            target=(self._render_threaded), args=(grid_width, grid_height), daemon=True
+            target=(self._render_threaded),
+            args=(vertical_splits, horizontal_splits),
+            daemon=True,
         )
 
         t.start()
-        return t
+        return self.render_result
 
-    def init_render(self):
-        self.reset_image()
-        self.rendered_passes = 0
-        self.rendering = True
-
-    def finish_render(self):
-        self.save_img(self.output_path)
-        self.rendering = False
-
-    def get_img_arr(self):
-        return self.img_arr
-
-    def get_img(self):
-        return pg.surfarray.make_surface(np.clip(self.img_arr, 0, 1) * 255)
+    def init_render(self, render_settings: RenderSettings) -> None:
+        self.render_settings = render_settings
+        self.render_result = RenderResult(
+            render_settings.WIDTH,
+            render_settings.HEIGHT,
+            self.render_settings.RENDER_PASSES,
+        )
+        self.scene = render_settings.SCENE

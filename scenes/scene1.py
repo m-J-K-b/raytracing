@@ -5,9 +5,9 @@ import pygame as pg
 
 from src.camera import Camera
 from src.material import Material
-from src.objects.object_mesh import Mesh
-from src.objects.object_simple_plane import SimplePlane
-from src.objects.object_sphere import Sphere
+from src.objects.mesh import Mesh
+from src.objects.simple_plane import SimplePlane
+from src.objects.sphere import Sphere
 from src.scene import Scene
 from src.util import Vec3
 

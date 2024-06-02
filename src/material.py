@@ -1,32 +1,35 @@
 from copy import copy
 
+import numpy as np
+
 from src.util import Vec3
 
 
 class Material:
     def __init__(
         self,
-        color,
-        emission_color,
-        emission_strength,
-        smoothness,
-        specular_color,
-        specular_probability,
-        transmission_color,
-        ior,
-    ):
-        self.color = color
-        self.emission_color = emission_color
-        self.emission_strength = emission_strength
-        self.smoothness = smoothness
-        self.specular_color = specular_color
-        self.specular_probability = specular_probability
-        self.transmission_color = transmission_color
-        self.ior = ior
+        color: Vec3,
+        emission_strength: float,
+        smoothness: float,
+        transmittance: float,
+        ior: float,
+    ) -> None:
+        self.color: Vec3 = color
+        self.emission_strength: float = emission_strength
+        self.smoothness: float = smoothness
+        self.transmittance: float = transmittance
+        self.ior: float = ior
 
     @classmethod
-    def default_material(self):
-        return Material(Vec3(0.7), Vec3(1), 0, 0, Vec3(1), 0, Vec3(1), 1.45)
+    def default_material(self) -> "Material":
+        return Material(
+            color=Vec3(0),
+            emission_strength=0,
+            smoothness=0,
+            is_reflective=False,
+            is_refractive=False,
+            ior=1,
+        )
 
-    def copy(self):
+    def copy(self) -> "Material":
         return copy(self)

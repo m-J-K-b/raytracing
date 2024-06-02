@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 
 from src.util import lerp
@@ -16,14 +18,16 @@ class PostProcessing:
     # 8. Saturation
     # 9. Tone Mapping
     # 9. Gamma Correction
-    def __init__(self, exposure=1, brightness=0, contrast=1, saturation=1, gamma=1):
+    def __init__(
+        self, exposure=1, brightness=0, contrast=1, saturation=1, gamma=1
+    ) -> None:
         self.exposure = exposure
         self.brightness = brightness
         self.contrast = contrast
         self.saturation = saturation
         self.gamma = gamma
 
-    def process(self, img_arr):
+    def process(self, img_arr) -> List[float]:
         processed_img_arr = self.exposure_correction(img_arr)
         processed_img_arr = self.contrast_and_brightness_correction(processed_img_arr)
         processed_img_arr = self.saturation_correction(processed_img_arr)
@@ -31,10 +35,10 @@ class PostProcessing:
         processed_img_arr = self.gamma_correction(processed_img_arr)
         return processed_img_arr
 
-    def greyscale(self, img):
+    def greyscale(self, img) -> List[float]:
         return np.dot(img, np.array([0.299, 0.587, 0.114]))
 
-    def exposure_correction(self, img):
+    def exposure_correction(self, img) -> List[float]:
         return img * self.exposure
 
     # def white_balancing(img, temp, tint):
@@ -43,14 +47,14 @@ class PostProcessing:
 
     #     x
 
-    def contrast_and_brightness_correction(self, img):
+    def contrast_and_brightness_correction(self, img) -> List[float]:
         return np.clip((self.contrast * (img - 0.5) + self.brightness + 0.5), 0, 1)
 
-    def saturation_correction(self, img):
+    def saturation_correction(self, img) -> List[float]:
         grey = self.greyscale(img)[:, :, None] * np.array([[[1, 1, 1]]])
         return np.clip((lerp(grey, img, self.saturation)), 0, 1)
 
-    def reinhardt_tonemapping(self, img, a=0.18, saturation=1.0):
+    def reinhardt_tonemapping(self, img, a=0.18, saturation=1.0) -> List[float]:
         img = img + 1e-8
         Lw = self.greyscale(img)
         Lwa = np.exp(np.mean(np.log(Lw)))  # calculate the global adaptation luminance
@@ -67,5 +71,5 @@ class PostProcessing:
         )  # apply the tonemapping to each pixel and clip the result to the range [0, 1]
         return output
 
-    def gamma_correction(self, img):
+    def gamma_correction(self, img) -> List[float]:
         return np.power(img, self.gamma)
