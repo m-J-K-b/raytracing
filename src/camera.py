@@ -41,7 +41,7 @@ class Camera:
         self.up = self.forward.cross(self.right).normalize()
 
     def get_ray(self, u: float, v: float) -> Ray:
-        ray_dir = (u * self.right + v * self.up + self.forward * self.d).normalize()
+        ray_dir = (u * self.right + v * self.up + self.d * self.forward).normalize()
         dof_target = ray_dir * self.dof_dist + self.pos
         ray_pos = (
             self.pos

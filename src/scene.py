@@ -17,21 +17,22 @@ class Scene:
     def __init__(self) -> None:
         self.objects: List[ObjectBase] = []
         self.camera: Camera = Camera(Vec3(0), np.pi / 3, Vec3(0, 0, 1))
-        self.environment_image: pg.Surface = None
-        self.ambient_light_coefficient = 0.2
+        self.environment_img_arr: List[int] = None
 
     def add_object(self, obj: ObjectBase) -> None:
         self.objects.append(obj)
 
     def intersect(self, ray: Ray) -> HitInfo:
-        hits = [
-            h for obj in self.objects for h in obj.intersect(ray) if h.depth > 1e-10
-        ]
-        sorted_hits = sorted(hits, key=lambda x: x.depth)
-        return sorted_hits
+        return sorted(
+            [h for obj in self.objects for h in obj.intersect(ray) if h.depth > 1e-10],
+            key=lambda x: x.depth,
+        )
 
-    def set_environment(self, img: pg.Surface) -> None:
-        self.environment_image = img
+    def set_environment(self, img: List[int] | pg.Surface) -> None:
+        if isinstance(img, np.array):
+            self.environment_image = img / np.max(img)
+        elif isinstance(img, pg.Surface):
+            self.environment_image = pg.surfarray.array3d(img) / 255
 
     def get_environment(self, ray: Ray) -> Vec3:
         if self.environment_image == None:
@@ -39,11 +40,10 @@ class Scene:
         u, v = vec_to_sky_coords(ray.direction)
         if math.isnan(u) or math.isnan(v):
             return Vec3(1)
-        x, y = (
-            int(self.environment_image.get_width() * u)
-            % self.environment_image.get_width(),
-            int(self.environment_image.get_height() * v)
-            % self.environment_image.get_height(),
+        c = Vec3(
+            self.environment_image[
+                int(self.environment_image.shape[0] * u),
+                int(self.environment_image.get_height() * v),
+            ]
         )
-        c = Vec3(self.environment_image.get_at((x, y))[0:3]) / 255
         return c
