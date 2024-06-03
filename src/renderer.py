@@ -4,7 +4,6 @@ from typing import List
 
 import numpy as np
 
-from src.light import Light
 from src.ray import Ray
 from src.render_result import RenderResult
 from src.render_settings import RenderSettings
@@ -54,7 +53,7 @@ class Renderer:
 
         return self.raytrace(
             Ray(
-                ray.origin + new_ray_direction * self.render_settings.EPS,
+                hits[0].pos,
                 new_ray_direction,
             ),
             incoming_light=incoming_light,
@@ -62,7 +61,7 @@ class Renderer:
             depth=depth + 1,
         )
 
-    def _render_area(self, area: List[float] = [0, 1, 0, 1]) -> None:
+    def render_area(self, area: List[float] = [0, 1, 0, 1]) -> None:
         for x in range(
             int(self.render_settings.WIDTH * area[0]),
             int(self.render_settings.WIDTH * area[1]),
@@ -82,21 +81,21 @@ class Renderer:
                     x, y, self.raytrace(ray, incoming_light=Vec3(0), ray_color=Vec3(1))
                 )
 
-    def _render(self) -> None:
+    def render(self) -> None:
         while self.render_result.rendered_passes < self.render_settings.RENDER_PASSES:
             self.render_result.rendered_passes += 1
-            self._render_area(self.render_settings.AREA)
+            self.render_area(self.render_settings.AREA)
             # np.random.seed(np.random.randint(0, 10000))
 
         self.render_result.finished = True
 
-    def render(self, render_settings: RenderSettings) -> RenderResult:
+    def start_render(self, render_settings: RenderSettings) -> RenderResult:
         self.init_render(render_settings)
-        t = Thread(target=self._render, daemon=True)
+        t = Thread(target=self.render, daemon=True)
         t.start()
         return self.render_result
 
-    def _render_threaded(self, vertical_splits: int, horizontal_splits: int) -> None:
+    def render_threaded(self, vertical_splits: int, horizontal_splits: int) -> None:
         w = (
             self.render_settings.AREA[1] - self.render_settings.AREA[0]
         ) / vertical_splits
@@ -117,7 +116,7 @@ class Renderer:
                     ]
                     threads.append(
                         Thread(
-                            target=self._render_area,
+                            target=self.render_area,
                             args=(area,),
                             daemon=True,
                         )
@@ -128,12 +127,10 @@ class Renderer:
 
             for t in threads:
                 t.join()
-            self.render_result.save(
-                f"./renders/room_{self.render_settings.WIDTH}x{self.render_settings.HEIGHT}_pass#{self.render_result.rendered_passes}.png"
-            )
+
         self.render_result.finished = True
 
-    def render_threaded(
+    def start_render_threaded(
         self,
         render_settings: RenderSettings,
         vertical_splits: int,
@@ -141,11 +138,10 @@ class Renderer:
     ) -> RenderResult:
         self.init_render(render_settings)
         t = Thread(
-            target=(self._render_threaded),
+            target=(self.render_threaded),
             args=(vertical_splits, horizontal_splits),
             daemon=True,
         )
-
         t.start()
         return self.render_result
 

@@ -1,3 +1,4 @@
+import math
 import sys
 from colorsys import hsv_to_rgb
 
@@ -7,102 +8,131 @@ import pygame as pg
 from src import *
 
 
+def convert_seconds(seconds: int):
+    s = int(seconds)
+    return f"{s // 3600 % 24:02d}:{s // 60 % 60:02d}:{s % 60:02d}"
+
+
+def get_env(ray: Ray):
+    u, v = util.vec_to_sky_coords(ray.direction)
+    if math.isnan(u) or math.isnan(v):
+        return Vec3(1)
+    values = [
+        (0, Vec3(0)),
+        (0.2, Vec3(0)),
+        (0.25, Vec3(1, 1, 0.5)),
+        (0.4, Vec3(0.3)),
+        (0.6, Vec3(0.3)),
+        (0.75, Vec3(0.5, 1, 1)),
+        (0.8, Vec3(0)),
+        (1, Vec3(0)),
+    ]
+    d = min(1, ((u % 0.5 - 0.25) ** 2 + (v - 0.5) ** 2) ** 0.5 * 10)
+    # return Vec3(u, v, 0.5)
+    for i in range(len(values)):
+        t, c = values[i]
+        next_t, next_c = values[i + 1]
+        if t < u < next_t:
+            local_t = (u - t) / (next_t - t)
+            lerped_c = util.lerp(c, next_c, local_t)
+            # return util.lerp(lerped_c, Vec3(0), d)
+            return lerped_c
+
+
 def main():
     pg.init()
-    WIDTH, HEIGHT = 1000, 1000
+    WIDTH, HEIGHT = int(1080 / 1.5), int(1920 / 1.5)
     RES = (WIDTH, HEIGHT)
     screen = pg.display.set_mode(RES)
     clock = pg.time.Clock()
-    r = Renderer()
-    s = Scene()
-    pp = PostProcessing()
-    pp.exposure = 0.8
-    # pp.brightness = -0.3
-    sphere0 = objects.Sphere(
-        material=Material(
-            color=Vec3(0.98, 0.88, 0.5),
-            emission_strength=0,
-            smoothness=0.8,
-            transmittance=0,
-            ior=1.45,
-        ),
-        origin=Vec3(0, 11, 0),
-        radius=10,
-    )
-    sphere1 = objects.Sphere(
-        material=Material(
-            color=Vec3(0.5, 0.88, 0.98),
-            emission_strength=0,
-            smoothness=0.8,
-            transmittance=0,
-            ior=1.45,
-        ),
-        origin=Vec3(0, -11, 0),
-        radius=10,
-    )
-    sphere2 = objects.Sphere(
-        material=Material(
-            color=Vec3(1),
-            emission_strength=0.2,
-            smoothness=0,
-            transmittance=0,
-            ior=1.45,
-        ),
-        origin=Vec3(0),
-        radius=1,
-    )
-    sphere3 = objects.Sphere(
-        material=Material(
-            color=Vec3(0.7, 0.7, 1),
-            emission_strength=0.8,
-            smoothness=0,
-            transmittance=0,
-            ior=1.45,
-        ),
-        origin=Vec3(-200, 0, -200),
-        radius=170,
-    )
-    sphere4 = objects.Sphere(
-        material=Material(
-            color=Vec3(1, 0.7, 0.7),
-            emission_strength=0.8,
-            smoothness=0,
-            transmittance=0,
-            ior=1.45,
-        ),
-        origin=Vec3(200, 0, -200),
-        radius=170,
-    )
-    s.add_object(sphere0)
-    s.add_object(sphere1)
-    s.add_object(sphere2)
-    s.add_object(sphere3)
-    s.add_object(sphere4)
-    # s.set_environment(pg.image.load("./assets/skyboxes/skybox1.png"))
-    s.camera = Camera(Vec3(0, 0, -10), np.pi / 3, Vec3(0), dof_dist=9.5, dof_strength=1)
-    rs = RenderSettings(s, 1000, 1000, 100, 8)
-
     t = 0
     dt = 0
-
     total_time = 0
 
-    def convert_seconds(seconds: int):
-        s = int(seconds)
-        return f"{s // 3600 % 24:02d}:{s // 60 % 60:02d}:{s % 60:02d}"
+    renderer = Renderer()
+    scene = Scene()
+    post_processing = PostProcessing()
+    post_processing.exposure = 2
+    post_processing.saturation = 0.8
+    # pp.brightness = -0.3
+    objs = [
+        objects.Sphere(
+            material=Material(
+                color=Vec3(1),
+                emission_strength=0,
+                smoothness=0.1,
+                transmittance=0,
+                ior=1.45,
+            ),
+            origin=Vec3(0),
+            radius=1,
+        ),
+        objects.Sphere(
+            material=Material(
+                color=Vec3(0.98, 0.88, 0.5),
+                emission_strength=0,
+                smoothness=0.5,
+                transmittance=0,
+                ior=1.45,
+            ),
+            origin=Vec3(-20, 22, 0),
+            radius=20,
+        ),
+        objects.Sphere(
+            material=Material(
+                color=Vec3(0.5, 0.88, 0.98),
+                emission_strength=0,
+                smoothness=0.5,
+                transmittance=0,
+                ior=1.45,
+            ),
+            origin=Vec3(-20, -22, 0),
+            radius=20,
+        ),
+    ]
+    [scene.add_object(o) for o in objs]
 
-    rr = r.render_threaded(rs, 4, 4)
+    scene.get_environment = get_env
+    # scene.set_environment(pg.image.load("./assets/skyboxes/skybox1.png"))
+
+    scene.camera = Camera(
+        Vec3(5, 0, 0), np.pi / 4, Vec3(0), dof_dist=10, dof_strength=2
+    )
+    scene.camera.pos.x = 5 / np.sin(scene.camera.fov / 2)
+    scene.camera.dof_dist = abs(scene.camera.pos.x)
+    render_settings = RenderSettings(scene, int(1080 * 0.4), int(1920 * 0.4), 100, 10)
+
+    render_result = renderer.start_render_threaded(render_settings, 4, 4)
     while True:
         t += dt
-        if not rr.finished:
-            total_time = t / (rr.progress + 1e-9)
+        if not render_result.finished:
+            total_time = t / (render_result.progress + 1e-9)
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
                 sys.exit()
+        if render_result.finished:
+            pg.image.save(
+                pg.surfarray.make_surface(
+                    post_processing.process(render_result.img_arr) * 255
+                ),
+                f"./renders/big_spehr123er.png",
+            )
+        #     n += 1
+        #     if n == N:
+        #         quit()
+        #         sys.exit()
+        #     scene.camera.pos = cam_pos()
+        #     scene.camera.update_axis()
+        #     render_result = renderer.render(render_settings)
+
+        img = pg.surfarray.make_surface(
+            post_processing.process(render_result.img_arr) * 255
+        )
+
         scaled_img = pg.transform.scale(
-            pg.surfarray.make_surface(pp.process(rr.img_arr) * 255),
+            img,
             RES,
         )
         # if rr.finished:
@@ -118,7 +148,7 @@ def main():
         # )
         screen.blit(scaled_img, (0, 0))
         pg.display.set_caption(
-            f"rendering: {rr.progress_percent:.4f}%, estimated {convert_seconds(t)} / {convert_seconds(total_time)} (h:m:s)"
+            f"rendering: {render_result.progress_percent:.4f}%, estimated {convert_seconds(t)} / {convert_seconds(total_time)} (h:m:s)"
         )
         pg.display.update()
         dt = clock.tick(60) / 1000

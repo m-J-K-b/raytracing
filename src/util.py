@@ -49,74 +49,6 @@ def fresnel_reflectivity_coefficient(incident, normal, obj_ior):
     return (rn + rt) * 0.5
 
 
-def vec_to_sky_coords(vec: Vec3) -> Tuple[float]:
-    return 0.5 + np.arctan2(vec.z, vec.x) / (2 * np.pi), 1 - (
-        0.5 + np.arcsin(vec.y) / np.pi
-    )
-
-
-class LightSpectrum:
-    SPECTRUM_START_NM = 380
-    SPECTRUM_END_NM = 740
-    SAMPLE_NUM = SPECTRUM_END_NM - SPECTRUM_START_NM
-    NORMALIZATION_CONSTANT = 1 / SAMPLE_NUM
-
-    def __init__(
-        self,
-    ) -> None:
-        self.spectrum = np.linspace(
-            self.SPECTRUM_START_NM,
-            self.SPECTRUM_END_NM,
-            self.SAMPLE_NUM,
-            endpoint=True,
-            dtype=np.float64,
-        )
-        self.spectrum_xyz = spectrum_to_xyz(self.spectrum)
-        self.radiance = np.ones(shape=(self.SAMPLE_NUM))
-
-    def to_xyz(self):
-        return Vec3(
-            *(
-                np.sum(self.spectrum_xyz * self.radiance[:, None], axis=0)
-                * self.NORMALIZATION_CONSTANT
-            )
-        )
-
-    @property
-    def rgb(self):
-        pass
-
-
-def piece_wise_gaussian(
-    x: List[int | float] | float | int, m: float | int, t1: float | int, t2: float | int
-) -> List[float | int] | float | int:
-    return np.exp(-(t1**2) * (x - m) ** 2 / 2) * (x > m) + np.exp(
-        -(t2**2) * (x - m) ** 2 / 2
-    ) * (x < m)
-
-
-def spectrum_to_xyz(spectrum):
-    x = (
-        1.056 * piece_wise_gaussian(spectrum, 599.8, 0.0264, 0.0323)
-        + 0.362 * piece_wise_gaussian(spectrum, 442, 0.0624, 0.0374)
-        - 0.065 * piece_wise_gaussian(spectrum, 501.1, 0.049, 0.0382)
-    )
-    y = 0.821 * piece_wise_gaussian(
-        spectrum, 568.8, 0.0213, 0.0247
-    ) + 0.286 * piece_wise_gaussian(spectrum, 530.9, 0.0613, 0.0322)
-    z = 1.217 * piece_wise_gaussian(
-        spectrum, 437.0, 0.0845, 0.0278
-    ) + 0.681 * piece_wise_gaussian(spectrum, 459.0, 0.0385, 0.0725)
-    return np.concatenate((x[:, None], y[:, None], z[:, None]), -1)
-
-
-def random_hemisphere_sample(normal: Vec3) -> Vec3:
-    nd = Vec3.random_unit()
-    if nd.dot(normal) < 0:
-        return -nd
-    return nd
-
-
 def refract(incident, normal, obj_ior):
     cosI = incident.dot(normal)
     if cosI < 0:
@@ -139,6 +71,19 @@ def refract(incident, normal, obj_ior):
         return incident.reflect(normal)
 
     return (n * incident + (n * cosI - cosT) * normal).normalize()
+
+
+def vec_to_sky_coords(vec: Vec3) -> Tuple[float]:
+    return 0.5 + np.arctan2(vec.z, vec.x) / (2 * np.pi), 1 - (
+        0.5 + np.arcsin(vec.y) / np.pi
+    )
+
+
+def random_hemisphere_sample(normal: Vec3) -> Vec3:
+    nd = Vec3.random_unit()
+    if nd.dot(normal) < 0:
+        return -nd
+    return nd
 
 
 def quadratic_formula(a: float, b: float, c: float) -> Tuple[float]:

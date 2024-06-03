@@ -19,4 +19,4 @@ class RenderSettings:
         self.MAX_BOUNCES: int = max_bounces
         self.SCENE: Scene = scene
         self.AREA: List[float] = [0, 1, 0, 1]
-        self.EPS = 0.00001
+        self.EPS = 0.0

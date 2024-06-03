@@ -1,5 +1,4 @@
 from src import objects, util
-from src.animation import Animation
 from src.camera import Camera
 from src.hit_info import HitInfo
 from src.material import Material

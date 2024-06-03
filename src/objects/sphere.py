@@ -27,7 +27,7 @@ class Sphere(ObjectBase):
                 HitInfo(
                     obj=self,
                     depth=t1,
-                    normal=self.get_normal(ray.at(t1)),
+                    normal=(ray.at(t1) - self.origin).normalize(),
                     pos=ray.at(t1),
                 )
             )
@@ -36,11 +36,8 @@ class Sphere(ObjectBase):
                 HitInfo(
                     obj=self,
                     depth=t2,
-                    normal=self.get_normal(ray.at(t2)),
+                    normal=(ray.at(t2) - self.origin).normalize(),
                     pos=ray.at(t2),
                 )
             )
         return hits
-
-    def get_normal(self, pos: Vec3) -> Vec3:
-        return (pos - self.origin).normalize()

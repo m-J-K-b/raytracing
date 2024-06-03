@@ -9,14 +9,21 @@ from src.util import Vec3
 
 class Mesh(ObjectBase):
     def __init__(
-        self, material: Material, origin: Vec3, vertices: List[Vec3], tris: List[int]
+        self,
+        material: Material,
+        origin: Vec3,
+        vertices: List[Vec3],
+        tris: List[int],
+        scale: Vec3 = None,
+        rotation: Vec3 = None,
     ):
         super().__init__(material, origin)
         self.vertices: List[Vec3] = vertices
         self.tris: List[int] = tris
+        self.transformed_vertices = vertices
 
-        self.scale: Vec3 = Vec3(1)
-        self.rotation: Vec3 = Vec3(0)
+        self.scale: Vec3 = scale if scale else Vec3(1)
+        self.rotation: Vec3 = rotation if rotation else Vec3(0)
 
         self.update_transformed_vertices()
 

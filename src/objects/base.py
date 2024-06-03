@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, List
+from typing import List
 
 from src.hit_info import HitInfo
 from src.material import Material
