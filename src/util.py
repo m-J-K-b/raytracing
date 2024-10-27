@@ -86,7 +86,18 @@ def random_hemisphere_sample(normal: Vec3) -> Vec3:
     return nd
 
 
-def quadratic_formula(a: float, b: float, c: float) -> Tuple[float]:
+def quadratic_formula(a: float, b: float, c: float) -> Tuple[float, float]:
+    """calculate the quadratic formula of the form:
+    (-b +- (b^2- 4*a*c)^0.5) / (2 * a)
+    
+    Args:
+        a (float): parameter a of the quadratic formula
+        b (float): parameter b of the quadratic formula
+        c (float): parameter c of the quadratic formula
+
+    Returns:
+        Tuple[float, float]: the solutions of the quadratic function
+    """
     return (-b - (b**2 - 4 * a * c) ** 0.5) / (2 * a), (
         -b + (b**2 - 4 * a * c) ** 0.5
     ) / (2 * a)

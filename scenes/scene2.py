@@ -28,7 +28,7 @@ def get_scene():
     scene = Scene()
     scene.objects = objects
     scene.camera = Camera(Vec3(-100, 4, 0), np.pi / 2, Vec3(0, 0, 0), dof_strength=0.5)
-    scene.camera.dof_dist = (scene.camera.pos - scene.camera.lookat).magnitude()
+    scene.camera.dof_dist = (scene.camera.pos - scene.camera.look_at).magnitude()
     scene.environment_image = pg.image.load("./assets/skyboxes/skybox1.png").convert()
 
     return scene

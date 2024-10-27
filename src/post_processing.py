@@ -19,7 +19,7 @@ class PostProcessing:
     # 9. Tone Mapping
     # 9. Gamma Correction
     def __init__(
-        self, exposure=1, brightness=0, contrast=1, saturation=1, gamma=1
+        self, exposure: int | float=1, brightness: int | float=0, contrast: int | float=1, saturation: int | float=1, gamma: int | float=1
     ) -> None:
         self.exposure = exposure
         self.brightness = brightness
@@ -31,11 +31,11 @@ class PostProcessing:
         processed_img_arr = self.exposure_correction(img_arr)
         processed_img_arr = self.contrast_and_brightness_correction(processed_img_arr)
         processed_img_arr = self.saturation_correction(processed_img_arr)
-        processed_img_arr = self.reinhardt_tonemapping(processed_img_arr)
+        processed_img_arr = self.reinhardt_tone_mapping(processed_img_arr)
         processed_img_arr = self.gamma_correction(processed_img_arr)
         return processed_img_arr
 
-    def greyscale(self, img) -> List[float]:
+    def grayscale(self, img) -> List[float]:
         return np.dot(img, np.array([0.299, 0.587, 0.114]))
 
     def exposure_correction(self, img) -> List[float]:
@@ -51,12 +51,12 @@ class PostProcessing:
         return np.clip((self.contrast * (img - 0.5) + self.brightness + 0.5), 0, 1)
 
     def saturation_correction(self, img) -> List[float]:
-        grey = self.greyscale(img)[:, :, None] * np.array([[[1, 1, 1]]])
-        return np.clip((lerp(grey, img, self.saturation)), 0, 1)
+        gray = self.grayscale(img)[..., None] * np.array([[[1, 1, 1]]])
+        return np.clip((lerp(gray, img, self.saturation)), 0, 1)
 
-    def reinhardt_tonemapping(self, img, a=0.18, saturation=1.0) -> List[float]:
+    def reinhardt_tone_mapping(self, img, a=0.18, saturation=1.0) -> List[float]:
         img = img + 1e-8
-        Lw = self.greyscale(img)
+        Lw = self.grayscale(img)
         Lwa = np.exp(np.mean(np.log(Lw)))  # calculate the global adaptation luminance
         Lm = a / Lwa * Lw  # calculate the adapted luminance
         Ld = (

@@ -13,13 +13,13 @@ class Mesh(ObjectBase):
         material: Material,
         origin: Vec3,
         vertices: List[Vec3],
-        tris: List[int],
-        scale: Vec3 = None,
-        rotation: Vec3 = None,
+        triangles: List[List[int]],
+        scale: Vec3 | None = None,
+        rotation: Vec3 | None = None,
     ):
         super().__init__(material, origin)
         self.vertices: List[Vec3] = vertices
-        self.tris: List[int] = tris
+        self.triangles: List[List[int]] = triangles
         self.transformed_vertices = vertices
 
         self.scale: Vec3 = scale if scale else Vec3(1)
@@ -33,17 +33,24 @@ class Mesh(ObjectBase):
     def get_translated_vertices(self, points) -> List[Vec3]:
         return [p + self.origin for p in points]
 
-    def get_rotated_vertices(self) -> List[Vec3]:
+    def get_rotated_vertices(self, vertices) -> List[Vec3]:
         rotated = []
-        for v in self.vertices:
-            v.rotate(
-                self.rotation.x,
+        for v in vertices:
+            vr = v.rotate(
+                self.rotation.x, Vec3(1, 0, 0)
             )
-        return self.vertices
+            vr = vr.rotate(
+                self.rotation.y, Vec3(0, 1, 0)
+            )
+            vr = vr.rotate(
+                self.rotation.z, Vec3(0, 0, 1)
+            )
+            rotated.append(vr)
+        return rotated
 
     def get_transformed_vertices(self) -> List[Vec3]:
         vertices = self.get_scaled_vertices(self.vertices)
-        # vertices = self.get_rotated_vertices(vertices)
+        vertices = self.get_rotated_vertices(vertices)
         vertices = self.get_translated_vertices(vertices)
         return vertices
 
@@ -63,7 +70,7 @@ class Mesh(ObjectBase):
 
     def intersect(self, ray: Ray) -> List[HitInfo]:
         hits = []
-        for face in self.tris:
+        for face in self.triangles:
             info = self.intersect_tri(face, ray)
             if info.hit:
                 hits.append(info)
@@ -99,22 +106,22 @@ class Mesh(ObjectBase):
         return info
 
     @classmethod
-    def load_from_obj_file(self, path) -> "Mesh":
+    def load_from_obj_file(self, path) -> list["Mesh"]:
         with open(path, "r") as f:
             vertices = []
-            tris = []
+            triangles = []
             vertex_index_offset = 0
             meshes = []
             for line in f.readlines():
                 if line.startswith("o "):
                     if meshes:
                         meshes[-1].vertices = vertices
-                        meshes[-1].tris = tris
+                        meshes[-1].triangles = triangles
                         meshes[-1].update_transformed_vertices()
                         vertex_index_offset += len(vertices)
                         vertices = []
-                        tris = []
-                    m = Mesh(Material.default_material(), [], [])
+                        triangles = []
+                    m = Mesh(Material.default_material(), Vec3(0), [], [])
                     m.name = line.split(" ")[-1][:-1]
                     meshes.append(m)
                 elif line.startswith("v "):
@@ -122,14 +129,14 @@ class Mesh(ObjectBase):
                     coords = [float(v) for v in coords]
                     vertices.append(Vec3(*coords))
                 elif line.startswith("f "):
-                    indecies = line.split(" ")[1:]
-                    indecies = [
+                    indices = line.split(" ")[1:]
+                    indices = [
                         int(index.split("/")[0]) - 1 - vertex_index_offset
-                        for index in indecies
+                        for index in indices
                     ]
-                    tris.append(indecies)
+                    triangles.append(indices)
             else:
                 meshes[-1].vertices = vertices
-                meshes[-1].tris = tris
+                meshes[-1].triangles = triangles
                 meshes[-1].update_transformed_vertices()
         return meshes

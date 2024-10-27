@@ -7,7 +7,6 @@ import pygame as pg
 
 from src import *
 
-
 def convert_seconds(seconds: int):
     s = int(seconds)
     return f"{s // 3600 % 24:02d}:{s // 60 % 60:02d}:{s % 60:02d}"
@@ -55,46 +54,11 @@ def main():
     post_processing.exposure = 2
     post_processing.saturation = 0.8
     # pp.brightness = -0.3
-    objs = [
-        objects.Sphere(
-            material=Material(
-                color=Vec3(1),
-                emission_strength=0,
-                smoothness=0.1,
-                transmittance=0,
-                ior=1.45,
-            ),
-            origin=Vec3(0),
-            radius=1,
-        ),
-        objects.Sphere(
-            material=Material(
-                color=Vec3(0.98, 0.88, 0.5),
-                emission_strength=0,
-                smoothness=0.5,
-                transmittance=0,
-                ior=1.45,
-            ),
-            origin=Vec3(-20, 22, 0),
-            radius=20,
-        ),
-        objects.Sphere(
-            material=Material(
-                color=Vec3(0.5, 0.88, 0.98),
-                emission_strength=0,
-                smoothness=0.5,
-                transmittance=0,
-                ior=1.45,
-            ),
-            origin=Vec3(-20, -22, 0),
-            radius=20,
-        ),
-    ]
-    [scene.add_object(o) for o in objs]
-
+    obj = objects.Mesh.load_from_obj_file("./assets/models/obj/chess_horse.obj")[0]
+    
+    scene.add_object(obj)
     scene.get_environment = get_env
     # scene.set_environment(pg.image.load("./assets/skyboxes/skybox1.png"))
-
     scene.camera = Camera(
         Vec3(5, 0, 0), np.pi / 4, Vec3(0), dof_dist=10, dof_strength=2
     )

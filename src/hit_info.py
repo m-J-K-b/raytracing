@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 
 from src.util import Vec3
+from src.objects import ObjectBase
 
 
 @dataclass
 class HitInfo:
-    depth: float = None
-    normal: Vec3 = None
-    pos: Vec3 = None
-    obj: int = None
+    hit: bool = False
+    depth: float = 0
+    pos: Vec3 = Vec3(0)
+    normal: Vec3 = Vec3(0)
+    obj: ObjectBase = None

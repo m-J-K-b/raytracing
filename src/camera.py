@@ -11,14 +11,14 @@ class Camera:
         self,
         pos: Vec3,
         fov: float,
-        lookat: Vec3,
+        look_at: Vec3,
         dof_strength: float = 0,
         dof_dist: float = 1,
     ) -> None:
         self.pos: Vec3 = pos
         self.fov: float = fov
         self.d: float = 1 / np.tan(fov / 2)
-        self.lookat: Vec3 = lookat
+        self.look_at: Vec3 = look_at
         self.forward: Vec3 = None
         self.right: Vec3 = None
         self.up: Vec3 = None
@@ -31,12 +31,12 @@ class Camera:
         self.fov = fov
         self.d = 1 / np.tan(fov / 2)
 
-    def set_lookat(self, lookat: Vec3) -> None:
-        self.lookat = lookat
+    def set_look_at(self, look_at: Vec3) -> None:
+        self.look_at = look_at
         self.update_axis()
 
     def update_axis(self) -> None:
-        self.forward = (self.lookat - self.pos).normalize()
+        self.forward = (self.look_at - self.pos).normalize()
         self.right = Vec3(0, 1, 0).cross(self.forward).normalize()
         self.up = self.forward.cross(self.right).normalize()
 

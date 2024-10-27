@@ -10,6 +10,10 @@ class ObjectBase:
     def __init__(self, material: Material, origin: Vec3):
         self.material: Material = material
         self.origin = origin
+        self.animations = []
+        
+        self.id: int = hash(self)
+        self.name: str = "Object"
 
     def update(self, t) -> None:
         for animation in self.animations:
