@@ -1,4 +1,5 @@
-import math
+from __future__ import annotations
+
 from typing import Any, List, Tuple
 
 import numpy as np
@@ -10,24 +11,26 @@ class Vec3(pg.Vector3):
         return super().__init_subclass__()
 
     @classmethod
-    def random_unit(self) -> "Vec3":
+    def random_unit(cls) -> Vec3:
         return Vec3(
             np.random.random() * 2 - 1,
             np.random.random() * 2 - 1,
             np.random.random() * 2 - 1,
         ).normalize()
 
-    def absolute(self) -> "Vec3":
+    def absolute(self) -> Vec3:
         self.x = abs(self.x)
         self.y = abs(self.y)
         self.z = abs(self.z)
         return self.copy()
 
-    def prod(self, other) -> "Vec3":
+    def prod(self, other) -> Vec3:
         return Vec3(self.x * other.x, self.y * other.y, self.z * other.z)
 
 
-def fresnel_reflectivity_coefficient(incident, normal, obj_ior):
+def fresnel_reflectivity_coefficient(
+    incident: Vec3, normal: Vec3, obj_ior: float
+) -> float:
     cosI = incident.dot(normal)
     if cosI < 0:
         n1 = 1
@@ -49,7 +52,7 @@ def fresnel_reflectivity_coefficient(incident, normal, obj_ior):
     return (rn + rt) * 0.5
 
 
-def refract(incident, normal, obj_ior):
+def refract(incident: Vec3, normal: Vec3, obj_ior: float) -> Vec3:
     cosI = incident.dot(normal)
     if cosI < 0:
         n1 = 1
@@ -73,7 +76,7 @@ def refract(incident, normal, obj_ior):
     return (n * incident + (n * cosI - cosT) * normal).normalize()
 
 
-def vec_to_sky_coords(vec: Vec3) -> Tuple[float]:
+def vec_to_sky_coords(vec: Vec3) -> Tuple[float, float]:
     return 0.5 + np.arctan2(vec.z, vec.x) / (2 * np.pi), 1 - (
         0.5 + np.arcsin(vec.y) / np.pi
     )
@@ -87,23 +90,12 @@ def random_hemisphere_sample(normal: Vec3) -> Vec3:
 
 
 def quadratic_formula(a: float, b: float, c: float) -> Tuple[float, float]:
-    """calculate the quadratic formula of the form:
-    (-b +- (b^2- 4*a*c)^0.5) / (2 * a)
-    
-    Args:
-        a (float): parameter a of the quadratic formula
-        b (float): parameter b of the quadratic formula
-        c (float): parameter c of the quadratic formula
-
-    Returns:
-        Tuple[float, float]: the solutions of the quadratic function
-    """
     return (-b - (b**2 - 4 * a * c) ** 0.5) / (2 * a), (
         -b + (b**2 - 4 * a * c) ** 0.5
     ) / (2 * a)
 
 
-def smoothstep(v: float | Any, minv: float | Any, maxv: float | Any) -> float | Any:
+def smoothstep(v: Any, minv: Any, maxv: Any) -> Any:
     if v < minv:
         return 0
     elif v > maxv:
@@ -114,17 +106,13 @@ def smoothstep(v: float | Any, minv: float | Any, maxv: float | Any) -> float | 
     return v * v * (3 - 2 * v)
 
 
-def lerp(v1: float | Any, v2: float | Any, t: float | Any) -> float | Any:
+def lerp(v1: Any, v2: Any, t: Any) -> Any:
     return v1 + (v2 - v1) * t
 
 
-def smooth_interpolation(
-    v1: float | Any, v2: float | Any, t: float | Any
-) -> float | Any:
+def smooth_interpolation(v1: Any, v2: Any, t: Any) -> Any:
     return v1 + (v2 - v1) * smoothstep(t, 0, 1)
 
 
-def exponential_interpolation(
-    v1: float | Any, v2: float | Any, t: float | Any, exponent: float = 0.5
-) -> float | Any:
+def exponential_interpolation(v1: Any, v2: Any, t: Any, exponent: float = 0.5) -> Any:
     return v1 + (v2 - v1) * min(max(t, 0), 1) ** exponent

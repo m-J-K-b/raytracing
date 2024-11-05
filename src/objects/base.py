@@ -1,6 +1,10 @@
-from typing import List
+from __future__ import annotations
 
-from src.hit_info import HitInfo
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    from src.hit_info import HitInfo
+
 from src.material import Material
 from src.ray import Ray
 from src.util import Vec3
@@ -11,7 +15,7 @@ class ObjectBase:
         self.material: Material = material
         self.origin = origin
         self.animations = []
-        
+
         self.id: int = hash(self)
         self.name: str = "Object"
 

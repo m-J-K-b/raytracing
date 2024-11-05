@@ -19,9 +19,6 @@ class Camera:
         self.fov: float = fov
         self.d: float = 1 / np.tan(fov / 2)
         self.look_at: Vec3 = look_at
-        self.forward: Vec3 = None
-        self.right: Vec3 = None
-        self.up: Vec3 = None
         self.update_axis()
 
         self.dof_strength: float = dof_strength
@@ -42,6 +39,8 @@ class Camera:
 
     def get_ray(self, u: float, v: float) -> Ray:
         ray_dir = (u * self.right + v * self.up + self.d * self.forward).normalize()
+        if self.dof_dist == 0 or self.dof_strength == 0:
+            return Ray(self.pos, ray_dir)
         dof_target = ray_dir * self.dof_dist + self.pos
         ray_pos = (
             self.pos

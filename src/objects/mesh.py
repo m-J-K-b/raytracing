@@ -36,15 +36,9 @@ class Mesh(ObjectBase):
     def get_rotated_vertices(self, vertices) -> List[Vec3]:
         rotated = []
         for v in vertices:
-            vr = v.rotate(
-                self.rotation.x, Vec3(1, 0, 0)
-            )
-            vr = vr.rotate(
-                self.rotation.y, Vec3(0, 1, 0)
-            )
-            vr = vr.rotate(
-                self.rotation.z, Vec3(0, 0, 1)
-            )
+            vr = v.rotate(self.rotation.x, Vec3(1, 0, 0))
+            vr = vr.rotate(self.rotation.y, Vec3(0, 1, 0))
+            vr = vr.rotate(self.rotation.z, Vec3(0, 0, 1))
             rotated.append(vr)
         return rotated
 
@@ -65,7 +59,19 @@ class Mesh(ObjectBase):
         self.origin = origin
         self.update_transformed_vertices()
 
+    def set_origin_to_center_of_mass(self) -> None:
+        com = Vec3(0)
+        for vertex in self.vertices:
+            com += vertex
+        com /= len(self.vertices)
+
+        self.vertices = [vertex - com for vertex in self.vertices]
+        self.origin += com
+
+        self.update_transformed_vertices()
+
     def set_rotation(self, rotation: Vec3) -> None:
+        self.rotation = rotation
         self.update_transformed_vertices()
 
     def intersect(self, ray: Ray) -> List[HitInfo]:
@@ -106,7 +112,7 @@ class Mesh(ObjectBase):
         return info
 
     @classmethod
-    def load_from_obj_file(self, path) -> list["Mesh"]:
+    def load_from_obj_file(cls, path) -> list["Mesh"]:
         with open(path, "r") as f:
             vertices = []
             triangles = []

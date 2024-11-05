@@ -1,6 +1,6 @@
-from copy import copy
+from __future__ import annotations
 
-import numpy as np
+from copy import copy
 
 from src.util import Vec3
 
@@ -21,15 +21,14 @@ class Material:
         self.ior: float = ior
 
     @classmethod
-    def default_material(self) -> "Material":
+    def default_material(cls) -> Material:
         return Material(
-            color=Vec3(0),
-            emission_strength=0,
-            smoothness=0,
-            is_reflective=False,
-            is_refractive=False,
-            ior=1,
+            color=Vec3(1),
+            emission_strength=0.0,
+            smoothness=0.0,
+            transmittance=0.0,
+            ior=1.45,
         )
 
-    def copy(self) -> "Material":
+    def copy(self) -> Material:
         return copy(self)

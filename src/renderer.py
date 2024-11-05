@@ -1,5 +1,4 @@
-import random
-from threading import Thread
+from threading import Lock, Thread
 from typing import List
 
 import numpy as np
@@ -8,21 +7,15 @@ from src.ray import Ray
 from src.render_result import RenderResult
 from src.render_settings import RenderSettings
 from src.scene import Scene
-from src.util import (
-    Vec3,
-    fresnel_reflectivity_coefficient,
-    lerp,
-    random_hemisphere_sample,
-    refract,
-)
+from src.util import Vec3, lerp, random_hemisphere_sample
 
 
 class Renderer:
     def __init__(self):
-        self.scene: Scene = None
+        self.scene: Scene = None  # type: ignore
 
-        self.render_result: RenderResult = None
-        self.render_settings: RenderSettings = None
+        self.render_result: RenderResult = None  # type: ignore
+        self.render_settings: RenderSettings = None  # type: ignore
 
     def raytrace(self, ray, incoming_light=None, ray_color=None, depth=None):
         incoming_light = Vec3(0) if not incoming_light else incoming_light
@@ -102,25 +95,28 @@ class Renderer:
         h = (
             self.render_settings.AREA[3] - self.render_settings.AREA[2]
         ) / horizontal_splits
-        while self.render_result.rendered_passes < self.render_settings.RENDER_PASSES:
-            self.render_result.rendered_passes += 1
-            np.random.seed(np.random.randint(0, 10000))
-            threads = []
-            for i in range(vertical_splits):
-                for j in range(horizontal_splits):
-                    area = [
+        areas = []
+        for i in range(vertical_splits):
+            for j in range(horizontal_splits):
+                areas.append(
+                    [
                         i * w + self.render_settings.AREA[0],
                         (i + 1) * w + self.render_settings.AREA[0],
                         j * h + self.render_settings.AREA[2],
                         (j + 1) * h + self.render_settings.AREA[2],
                     ]
-                    threads.append(
-                        Thread(
-                            target=self.render_area,
-                            args=(area,),
-                            daemon=True,
-                        )
-                    )
+                )
+        while self.render_result.rendered_passes < self.render_settings.RENDER_PASSES:
+            self.render_result.rendered_passes += 1
+            np.random.seed(np.random.randint(0, 10000))
+            threads = [
+                Thread(
+                    target=self.render_area,
+                    args=(area,),
+                    daemon=True,
+                )
+                for area in areas
+            ]
 
             for t in threads:
                 t.start()
