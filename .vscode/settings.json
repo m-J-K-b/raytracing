@@ -1,0 +1,21 @@
+{
+    "editor.renderWhitespace": "all",
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "prettier.tabWidth": 4,
+    "editor.formatOnSave": true,
+
+    "workbench.iconTheme": "material-icon-theme",
+
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoFormatStrings": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "isort.args": ["--profile", "black"],
+
+    "editor.multiCursorModifier": "ctrlCmd"
+}
