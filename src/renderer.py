@@ -3,11 +3,12 @@ from typing import List
 
 import numpy as np
 
+from src.frame import Frame
 from src.ray import Ray
 from src.render_result import RenderResult
 from src.render_settings import RenderSettings
 from src.scene import Scene
-from src.util import Vec3, lerp, random_hemisphere_sample
+from src.util import Vec3, lerp, sample_hemisphere
 
 
 class Renderer:
@@ -17,42 +18,88 @@ class Renderer:
         self.render_result: RenderResult = None  # type: ignore
         self.render_settings: RenderSettings = None  # type: ignore
 
-    def raytrace(self, ray, incoming_light=None, ray_color=None, depth=None):
-        incoming_light = Vec3(0) if not incoming_light else incoming_light
-        ray_color = Vec3(0) if not ray_color else ray_color
-        depth = 0 if not depth else depth
+    # SampledSpectrum LiRandomWalk(RayDifferential ray,
+    #         SampledWavelengths &lambda, Sampler sampler,
+    #         ScratchBuffer &scratchBuffer, int depth) const {
+    #     <<Intersect ray with scene and return if no intersection>>
+    #        pstd::optional<ShapeIntersection> si = Intersect(ray);
+    #        if (!si) {
+    #            <<Return emitted light from infinite light sources>>
+    #               SampledSpectrum Le(0.f);
+    #               for (Light light : infiniteLights)
+    #                   Le += light.Le(ray, lambda);
+    #               return Le;
 
-        if depth > self.render_settings.MAX_BOUNCES:
-            return Vec3(0)
+    #        }
+    #        SurfaceInteraction &isect = si->intr;
 
-        hits = self.scene.intersect(ray)
-        if not hits:
-            return incoming_light + ray_color.prod(self.scene.get_environment(ray))
+    #     <<Get emitted radiance at surface intersection>>
+    #        Vector3f wo = -ray.d;
+    #        SampledSpectrum Le = isect.Le(wo, lambda);
 
-        if hits[0].obj.material.emission_strength > 0:
-            emitted_light = (
-                hits[0].obj.material.color * hits[0].obj.material.emission_strength
+    #     <<Terminate random walk if maximum depth has been reached>>
+    #        if (depth == maxDepth)
+    #            return Le;
+
+    #     <<Compute BSDF at random walk intersection point>>
+    #        BSDF bsdf = isect.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
+
+    #     <<Randomly sample direction leaving surface for random walk>>
+    #        Point2f u = sampler.Get2D();
+    #        Vector3f wp = SampleUniformSphere(u);
+
+    #     <<Evaluate BSDF at surface for sampled direction>>
+    #        SampledSpectrum fcos = bsdf.f(wo, wp) * AbsDot(wp, isect.shading.n);
+    #        if (!fcos)
+    #            return Le;
+
+    #     <<Recursively trace ray to estimate incident radiance at surface>>
+    #        ray = isect.SpawnRay(wp);
+    #        return Le  + fcos * LiRandomWalk(ray, lambda, sampler, scratchBuffer,
+    #                                         depth + 1) / (1 / (4 * Pi));
+
+    # }
+
+    def raytrace(self, ray: Ray) -> Vec3:
+        L = Vec3(0)
+        beta = Vec3(1)
+        depth = 0
+        while beta.x + beta.y + beta.z:
+            intersection = self.scene.intersect(ray)
+
+            # Sample environment light if no intersection occured
+            if not intersection:
+                L += beta.prod(self.scene.get_environment(ray))
+                break
+            shading_frame = Frame.from_normal(intersection.normal)
+            wi = shading_frame.to_local(
+                -ray.direction
+            )  # incoming ray direction in local space.
+
+            # Sample emitted light from intersected object
+            if intersection.obj.material.emission_strength > 0:
+                L += beta.prod(intersection.obj.Le())
+
+            # Break loop if depth has exceeded max depth
+            if depth >= self.render_settings.MAX_BOUNCES:
+                break
+
+            wo = intersection.obj.bxdf.sample_direction(
+                wi
+            )  # outgoiing ray direction in local space.
+            pdf = intersection.obj.bxdf.pdf(wi, wo)
+            beta = beta.prod(
+                intersection.obj.bxdf.reflection_coefficient(wo, wi).prod(
+                    intersection.obj.material.color
+                )
+                / pdf
+                * abs(wi.y)
             )
-            incoming_light += ray_color.prod(emitted_light)
-        ray_color = ray_color.prod(hits[0].obj.material.color)
+            ray.origin = intersection.pos
+            ray.direction = shading_frame.to_global(wo)
+            depth += 1
 
-        reflection_direction = ray.direction.reflect(hits[0].normal)
-
-        new_ray_direction = lerp(
-            random_hemisphere_sample(hits[0].normal),
-            reflection_direction,
-            hits[0].obj.material.smoothness,
-        )
-
-        return self.raytrace(
-            Ray(
-                hits[0].pos,
-                new_ray_direction,
-            ),
-            incoming_light=incoming_light,
-            ray_color=ray_color,
-            depth=depth + 1,
-        )
+        return L
 
     def render_area(self, area: List[float] = [0, 1, 0, 1]) -> None:
         for x in range(
@@ -70,9 +117,7 @@ class Renderer:
                     u,
                     v,
                 )
-                self.render_result.add_to_px(
-                    x, y, self.raytrace(ray, incoming_light=Vec3(0), ray_color=Vec3(1))
-                )
+                self.render_result.add_to_px(x, y, self.raytrace(ray))
 
     def render(self) -> None:
         while self.render_result.rendered_passes < self.render_settings.RENDER_PASSES:

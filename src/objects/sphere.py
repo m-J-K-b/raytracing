@@ -1,5 +1,6 @@
 from typing import List
 
+from src.bxdf import BxDF
 from src.hit_info import HitInfo
 from src.material import Material
 from src.objects.base import ObjectBase
@@ -8,8 +9,10 @@ from src.util import Vec3, quadratic_formula
 
 
 class Sphere(ObjectBase):
-    def __init__(self, material: Material, origin: Vec3, radius: float) -> None:
-        super().__init__(material, origin)
+    def __init__(
+        self, material: Material, bxdf: BxDF, origin: Vec3, radius: float
+    ) -> None:
+        super().__init__(material, bxdf, origin)
         self.radius: float = radius
 
     def intersect(self, ray: Ray) -> List[HitInfo]:

@@ -1,5 +1,6 @@
 from typing import List
 
+from src.bxdf import BxDF, DiffuseBRDF
 from src.hit_info import HitInfo
 from src.material import Material
 from src.objects.base import ObjectBase
@@ -11,13 +12,14 @@ class Mesh(ObjectBase):
     def __init__(
         self,
         material: Material,
+        bxdf: BxDF,
         origin: Vec3,
         vertices: List[Vec3],
         triangles: List[List[int]],
         scale: Vec3 | None = None,
         rotation: Vec3 | None = None,
     ):
-        super().__init__(material, origin)
+        super().__init__(material, bxdf, origin)
         self.vertices: List[Vec3] = vertices
         self.triangles: List[List[int]] = triangles
         self.transformed_vertices = vertices
@@ -127,7 +129,13 @@ class Mesh(ObjectBase):
                         vertex_index_offset += len(vertices)
                         vertices = []
                         triangles = []
-                    m = Mesh(Material.default_material(), Vec3(0), [], [])
+                    m = Mesh(
+                        Material.default_material(),
+                        DiffuseBRDF(),
+                        Vec3(0),
+                        [],
+                        [],
+                    )
                     m.name = line.split(" ")[-1][:-1]
                     meshes.append(m)
                 elif line.startswith("v "):

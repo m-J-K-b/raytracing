@@ -1,15 +1,14 @@
 import math
 import sys
 import time
-from colorsys import hsv_to_rgb
 from datetime import datetime
 from threading import Thread
 
 import numpy as np
 import pygame as pg
 
-from sky_shader import get_sky_color, worley_noise
 from src import *
+from src.bxdf import DiffuseBRDF
 
 
 def convert_seconds(seconds: int | float):
@@ -19,12 +18,11 @@ def convert_seconds(seconds: int | float):
 
 def random_offset(u, v):
     # Generate a pseudo-random offset based on u and v
-    seed = int(u * 1000) + int(v * 1000)  # Create a unique seed based on coordinates
-    np.random.seed(seed)  # Seed the random number generator
     return np.random.uniform(-0.1, 0.1)  # Random offset in the range [-0.1, 0.1]
 
 
 def get_env_color_bands(ray: Ray) -> Vec3:
+    # return Vec3(0)
     u, v = util.vec_to_sky_coords(ray.direction)
     if math.isnan(u) or math.isnan(v):
         return Vec3(1)
@@ -89,41 +87,31 @@ def main():
     total_time = 0
 
     scene = Scene()
-
     scene.get_environment = get_env_color_bands
 
-    horse = objects.Mesh.load_from_obj_file("./assets/models/obj/chess_horse.obj")[0]
-    horse.set_rotation(Vec3(0, 180, 0))
-    horse.set_scale(Vec3(1.3))
-    horse.set_origin_to_center_of_mass()
-    horse.set_origin(Vec3(0, 0, 0))
-    horse.material.smoothness = 0.7
-    horse.material.color = Vec3(1)
-    scene.add_object(horse)
+    obj = objects.Sphere(Material.default_material(), DiffuseBRDF(), Vec3(0), 1)
+    obj.material.color = Vec3(1, 0.8, 0.5)
+    scene.add_object(obj)
 
-    obj = objects.Sphere(Material.default_material(), Vec3(0, -7, 0), 5)
-    obj.material.color = Vec3(0.8, 0.8, 1)
+    obj = objects.Sphere(
+        Material.default_material(), DiffuseBRDF(), Vec3(0, -100, 0), 99
+    )
+    obj.material.color = Vec3(1)
+    scene.add_object(obj)
+
+    obj = objects.Sphere(Material.default_material(), DiffuseBRDF(), Vec3(0, 10, 10), 5)
+    obj.material.color = Vec3(1)
+    obj.material.emission_strength = 1
     scene.add_object(obj)
 
     scene.camera = Camera(
-        Vec3(-7, -1.1, 0),
-        np.pi / 4,
-        Vec3(0, -1, 0),
-        dof_strength=0.05,
-        dof_dist=(Vec3(-7, -0.1, 0) - horse.origin).magnitude(),
+        Vec3(5, 5, -4),
+        90 * np.pi / 180,
+        Vec3(0, 3, 5),
+        dof_strength=0,
     )
-    # T = np.pi / 3 * 4
-    # scene.camera = Camera(
-    #     Vec3(0),
-    #     np.pi / 1.5,
-    #     Vec3(np.cos(T), 0.2, np.sin(T)),
-    #     dof_strength=0,
-    #     dof_dist=0,
-    # )
-    # scene.camera.pos.x = 5 / np.sin(scene.camera.fov / 2)
-    # scene.camera.dof_dist = abs(scene.camera.pos.x)
 
-    render_settings = RenderSettings(scene, int(600 * 2), int(800 * 2), 15, 4)
+    render_settings = RenderSettings(scene, int(600), int(800), 15, 4)
     renderer = Renderer()
     post_processing = PostProcessing()
     post_processing.exposure = 1
@@ -133,11 +121,14 @@ def main():
     post_processing.gamma
 
     render_result = renderer.start_render_threaded(render_settings, 3, 4)
+    # render_result = renderer.start_render(render_settings)
     processed_result = np.zeros_like(render_result.img_arr)
+    img = pg.surfarray.make_surface(processed_result * 255)
 
     def callback(*args, **kwargs):
-        nonlocal render_result
+        nonlocal render_result, img
         render_result.update_views()
+        img = pg.surfarray.make_surface(processed_result * 255)
 
     post_processing_thread = continuous_post_processing(
         render_result.img_arr, processed_result, post_processing, callback=callback
@@ -172,7 +163,6 @@ def main():
             img.save("full_dynamic_range.tiff", format="TIFF")
             saved = True
 
-        img = pg.surfarray.make_surface(processed_result * 255)
         scaled_img = pg.transform.scale(
             img,
             RES,

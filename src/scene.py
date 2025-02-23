@@ -21,11 +21,13 @@ class Scene:
     def add_object(self, obj: ObjectBase) -> None:
         self.objects.append(obj)
 
-    def intersect(self, ray: Ray) -> list[HitInfo]:
-        return sorted(
-            [h for obj in self.objects for h in obj.intersect(ray) if h.depth > 1e-10],
-            key=lambda x: x.depth,
-        )
+    def intersect(self, ray: Ray) -> HitInfo:
+        intersections = [
+            h for obj in self.objects for h in obj.intersect(ray) if h.depth > 1e-10
+        ]
+        if intersections:
+            return sorted(intersections, key=lambda x: x.depth)[0]
+        return intersections
 
     def set_environment(self, img: np.ndarray | pg.Surface) -> None:
         if isinstance(img, pg.Surface):
