@@ -28,52 +28,18 @@ class Vec3(pg.Vector3):
         return Vec3(self.x * other.x, self.y * other.y, self.z * other.z)
 
 
-def fresnel_reflectivity_coefficient(
-    incident: Vec3, normal: Vec3, obj_ior: float
-) -> float:
-    cosI = incident.dot(normal)
-    if cosI < 0:
-        n1 = 1
-        n2 = obj_ior
-        normal = -normal
-    else:
-        n1 = obj_ior
-        n2 = 1
-        cosI = -cosI
-    n = n1 / n2
-    sinT2 = n * n * (1.0 - cosI * cosI)
-    cosT = (1.0 - sinT2) ** 0.5
-    rn = (n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT)
-    rt = (n2 * cosI - n1 * cosT) / (n2 * cosI + n2 * cosT)
-    rn *= rn
-    rt *= rt
-    if cosT * cosT < 0:
-        return 1
-    return (rn + rt) * 0.5
+def schlick_approximation(incident: Vec3, normal: Vec3, ior: float):
+    cos = incident.dot(normal)
+    r0 = (1 - ior) / (1 + ior)
+    r0 = r0 * r0
+    return r0 + (1 - r0) * (1 - cos) ** 5
 
 
-def refract(incident: Vec3, normal: Vec3, obj_ior: float) -> Vec3:
-    cosI = incident.dot(normal)
-    if cosI < 0:
-        n1 = 1
-        n2 = obj_ior
-        normal = -normal
-    else:
-        n1 = obj_ior
-        n2 = 1
-        cosI = -cosI
-    n = n1 / n2
-    sinT2 = n * n * (1.0 - cosI * cosI)
-    cosT = (1.0 - sinT2) ** 0.5
-
-    if n == 1:
-        return incident
-    if cosT * cosT < 0:
-        refl = 1
-        trans = 0
-        return incident.reflect(normal)
-
-    return (n * incident + (n * cosI - cosT) * normal).normalize()
+def refract(incident: Vec3, normal: Vec3, etai_over_etat: float):
+    cos_theta = min(normal.dot(-incident), 1)
+    r_out_perp = etai_over_etat * (incident + cos_theta * normal)
+    r_out_parallel = -np.sqrt(abs(1.0 - r_out_perp.length_squared())) * normal
+    return r_out_perp + r_out_parallel
 
 
 def vec_to_sky_coords(vec: Vec3) -> Tuple[float, float]:

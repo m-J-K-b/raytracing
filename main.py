@@ -7,9 +7,10 @@ from threading import Thread
 
 import numpy as np
 import pygame as pg
+from PIL import Image
 
-from sky_shader import get_sky_color, worley_noise
 from src import *
+from src.util import vec_to_sky_coords
 
 
 def convert_seconds(seconds: int | float):
@@ -35,14 +36,25 @@ def get_env_color_bands(ray: Ray) -> Vec3:
     u = int((u + offset * 0.1) * N % N) / N
 
     return Vec3(
-        np.sin(u * np.pi * 50) * 0.5 + 0.5,
+        np.sin(u * np.pi * 1) * 0.5 + 0.5,
         np.sin(v * np.pi * 4 + u * 40) * 0.5 + 0.5,
         0.5,
     )
 
 
-def get_env_simple_sky(ray: Ray) -> Vec3:
-    return Vec3(*get_sky_color(ray.direction, 10000))
+sky_map: pg.Surface = None
+SKY_MAP_W = None
+SKY_MAP_H = None
+
+
+def sample_sky_map(ray: Ray):
+    if sky_map == None:
+        return Vec3(0)
+    u, v = vec_to_sky_coords(ray.direction)
+    x, y = int(u * SKY_MAP_W), int(v * SKY_MAP_H)
+    c = sky_map.get_at((x, y))
+    c = Vec3(c[0], c[1], c[2]) / 255
+    return c
 
 
 def continuous_post_processing(
@@ -80,7 +92,7 @@ def continuous_post_processing(
 
 def main():
     pg.init()
-    WIDTH, HEIGHT = int(600 * 1.4), int(800 * 1.4)
+    WIDTH, HEIGHT = int(800), int(400)
     RES = (WIDTH, HEIGHT)
     screen = pg.display.set_mode(RES)
     clock = pg.time.Clock()
@@ -88,51 +100,70 @@ def main():
     dt = 0
     total_time = 0
 
+    global sky_map, SKY_MAP_W, SKY_MAP_H
+    sky_map = pg.image.load("./assets/skyboxes/skybox1.png").convert()
+    SKY_MAP_W = sky_map.get_width()
+    SKY_MAP_H = sky_map.get_height()
+
     scene = Scene()
 
-    scene.get_environment = get_env_color_bands
+    scene.get_environment = sample_sky_map
 
-    horse = objects.Mesh.load_from_obj_file("./assets/models/obj/chess_horse.obj")[0]
-    horse.set_rotation(Vec3(0, 180, 0))
-    horse.set_scale(Vec3(1.3))
-    horse.set_origin_to_center_of_mass()
-    horse.set_origin(Vec3(0, 0, 0))
-    horse.material.smoothness = 0.7
-    horse.material.color = Vec3(1)
-    scene.add_object(horse)
+    # Sphere 1: Reflective Red Sphere
+    sphere1 = objects.Sphere(Material.default_material(), Vec3(-1, 0, 0), 1)
+    sphere1.material.color = Vec3(1, 0, 0)  # Red
+    sphere1.material.transmittance = 0.0
+    sphere1.material.smoothness = 0.9
+    sphere1.material.ior = 1.5  # Reflective
+    scene.add_object(sphere1)
 
-    obj = objects.Sphere(Material.default_material(), Vec3(0, -7, 0), 5)
-    obj.material.color = Vec3(0.8, 0.8, 1)
-    scene.add_object(obj)
+    # Sphere 2: Transparent Blue Sphere
+    sphere2 = objects.Sphere(Material.default_material(), Vec3(-3, 0, 0), 1)
+    sphere2.material.color = Vec3(0, 0, 1)  # Blue
+    sphere2.material.transmittance = 0.8  # Transparent
+    sphere2.material.smoothness = 0.1
+    sphere2.material.ior = 1.33  # Glass-like
+    scene.add_object(sphere2)
+
+    # Sphere 3: Matte Green Sphere
+    sphere3 = objects.Sphere(Material.default_material(), Vec3(1, 0, 0), 1)
+    sphere3.material.color = Vec3(0, 1, 0)  # Green
+    sphere3.material.transmittance = 0.0
+    sphere3.material.smoothness = 0.0  # Matte
+    sphere3.material.ior = 1.0
+    scene.add_object(sphere3)
+
+    # Sphere 4: Emissive Yellow Sphere
+    sphere4 = objects.Sphere(Material.default_material(), Vec3(3, 0, 0), 1)
+    sphere4.material.color = Vec3(1, 1, 0)  # Yellow
+    sphere4.material.transmittance = 0.0
+    sphere4.material.smoothness = 0.0
+    sphere4.material.ior = 1.0
+    sphere4.material.emission_strength = 1.0  # Emits light
+    scene.add_object(sphere4)
+
+    sphere5 = objects.Sphere(Material.default_material(), Vec3(0, -101, 0), 100)
+    sphere5.material.color = Vec3(1, 1, 1)  # Yellow
+    sphere5.material.transmittance = 0.0
+    sphere5.material.smoothness = 0.0
+    sphere5.material.ior = 1.0
+    sphere5.material.emission_strength = 0.0  # Emits light
+    scene.add_object(sphere5)
 
     scene.camera = Camera(
-        Vec3(-7, -1.1, 0),
-        np.pi / 4,
-        Vec3(0, -1, 0),
-        dof_strength=0.05,
-        dof_dist=(Vec3(-7, -0.1, 0) - horse.origin).magnitude(),
+        Vec3(0, 0, 5),  # Camera position
+        np.pi / 2,  # Field of view
+        Vec3(0, 0, 0),  # Look-at point
+        dof_strength=0.01,
+        dof_dist=10,
     )
-    # T = np.pi / 3 * 4
-    # scene.camera = Camera(
-    #     Vec3(0),
-    #     np.pi / 1.5,
-    #     Vec3(np.cos(T), 0.2, np.sin(T)),
-    #     dof_strength=0,
-    #     dof_dist=0,
-    # )
-    # scene.camera.pos.x = 5 / np.sin(scene.camera.fov / 2)
-    # scene.camera.dof_dist = abs(scene.camera.pos.x)
 
-    render_settings = RenderSettings(scene, int(600 * 2), int(800 * 2), 15, 4)
+    render_settings = RenderSettings(scene, int(800), int(400), 30, 4)
     renderer = Renderer()
     post_processing = PostProcessing()
-    post_processing.exposure = 1
-    post_processing.brightness = 0
-    post_processing.contrast = 1.2
-    post_processing.saturation = 0.5
-    post_processing.gamma
 
-    render_result = renderer.start_render_threaded(render_settings, 3, 4)
+    render_result = renderer.start_render(render_settings, 3, 4)
+    # render_result = renderer.start_render(render_settings)
     processed_result = np.zeros_like(render_result.img_arr)
 
     def callback(*args, **kwargs):
@@ -151,6 +182,7 @@ def main():
 
         for event in pg.event.get():
             if event.type == pg.QUIT:
+                renderer.stop_render()
                 pg.quit()
                 sys.exit()
         if render_result.finished and not saved:
@@ -165,8 +197,6 @@ def main():
                 ),
                 f"./renders/{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.png",
             )
-
-            from PIL import Image
 
             img = Image.fromarray(render_result.img_arr.astype(np.uint8))
             img.save("full_dynamic_range.tiff", format="TIFF")

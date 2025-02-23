@@ -7,6 +7,7 @@ from src.util import Vec3
 class Ray:
     origin: Vec3 = field(default_factory=Vec3)
     direction: Vec3 = field(default_factory=Vec3)
+    inside: bool = field(default=False)
 
     def at(self, d):
         return self.origin + self.direction * d
