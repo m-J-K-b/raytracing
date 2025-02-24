@@ -1,6 +1,6 @@
 from typing import List
 
-from src.scene import Scene
+from src.raytracing.scene import Scene
 
 
 class RenderSettings:

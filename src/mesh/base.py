@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import List
 
-if TYPE_CHECKING:
-    from src.hit_info import HitInfo
-
-from src.material import Material
-from src.ray import Ray
-from src.util import Vec3
+from src.core import HitInfo, Material, Ray, Vec3
 
 
 class ObjectBase:

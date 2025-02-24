@@ -1,10 +1,8 @@
 from typing import List
 
-from src.hit_info import HitInfo
-from src.material import Material
-from src.objects.base import ObjectBase
-from src.ray import Ray
-from src.util import Vec3, quadratic_formula
+from src.core import HitInfo, Material, Ray, Vec3
+from src.core.util import quadratic_formula
+from src.mesh.base import ObjectBase
 
 
 class Sphere(ObjectBase):

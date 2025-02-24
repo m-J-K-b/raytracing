@@ -1,16 +1,13 @@
-import math
 import sys
-import time
-from colorsys import hsv_to_rgb
 from datetime import datetime
 from threading import Thread
 
 import numpy as np
 import pygame as pg
-from PIL import Image
 
-from src import *
-from src.util import vec_to_sky_coords
+from src import core, mesh, post_processing, raytracing
+from src.core.material import Material
+from src.core.vec3 import Vec3
 
 
 def convert_seconds(seconds: int | float):
@@ -18,105 +15,95 @@ def convert_seconds(seconds: int | float):
     return f"{s // 3600 % 24:02d}:{s // 60 % 60:02d}:{s % 60:02d}"
 
 
-def random_offset(u, v):
-    # Generate a pseudo-random offset based on u and v
-    seed = int(u * 1000) + int(v * 1000)  # Create a unique seed based on coordinates
-    np.random.seed(seed)  # Seed the random number generator
-    return np.random.uniform(-0.1, 0.1)  # Random offset in the range [-0.1, 0.1]
-
-
-def get_env_color_bands(ray: Ray) -> Vec3:
-    u, v = util.vec_to_sky_coords(ray.direction)
-    if math.isnan(u) or math.isnan(v):
-        return Vec3(1)
-
-    N = 100
-    offset = random_offset(u, v)  # Use the simple random offset
-    # u += offset * 0.1
-    u = int((u + offset * 0.1) * N % N) / N
-
-    return Vec3(
-        np.sin(u * np.pi * 1) * 0.5 + 0.5,
-        np.sin(v * np.pi * 4 + u * 40) * 0.5 + 0.5,
-        0.5,
-    )
-
-
 sky_map: pg.Surface = None
 SKY_MAP_W = None
 SKY_MAP_H = None
 
 
-def sample_sky_map(ray: Ray):
+def sample_sky_map(ray: core.Ray):
     if sky_map == None:
         return Vec3(0)
-    u, v = vec_to_sky_coords(ray.direction)
+    u, v = raytracing.util.vec_to_sky_coords(ray.direction)
     x, y = int(u * SKY_MAP_W), int(v * SKY_MAP_H)
     c = sky_map.get_at((x, y))
     c = Vec3(c[0], c[1], c[2]) / 255
     return c
 
 
-def continuous_post_processing(
-    input_img_arr: np.ndarray,
-    output_img_arr: np.ndarray,
-    post_processing: PostProcessing,
-    **kwargs,
-) -> Thread:
-
-    def _continuous_post_processing(
-        input_img_arr: np.ndarray,
-        output_img_arr: np.ndarray,
-        post_processing: PostProcessing,
-        **kwargs,
-    ) -> None:
-        callback = kwargs.get("callback")
-        while True:
-            np.copyto(dst=output_img_arr, src=post_processing.process(input_img_arr))
-            if callable(callback):
-                callback()
-
-    t = Thread(
-        target=_continuous_post_processing,
-        args=(
-            input_img_arr,
-            output_img_arr,
-            post_processing,
-        ),
-        kwargs=kwargs,
-        daemon=True,
-    )
-    t.start()
-    return t
-
-
 def main():
     pg.init()
-    WIDTH, HEIGHT = int(800), int(400)
-    RES = (WIDTH, HEIGHT)
-    screen = pg.display.set_mode(RES)
+
+    # Create scene and set up parameters
+    # scene = raytracing.Scene()
+    # sphere_count = 10
+    # sphere_radius = 1.0
+    # spacing_factor = 2.5
+    # margin = 1.2
+    # fov = np.pi / 5  # 90-degree FOV
+
+    # Scene dimensions and resolution
+    # scene_width = sphere_count * sphere_radius * spacing_factor
+    # scene_height = sphere_count * sphere_radius * spacing_factor
+    # resolution = (1000, 1000)
+
+    # ------------------------------------------------------------------------
+    # Populate Scene with Objects
+    # ------------------------------------------------------------------------
+    # for i in range(sphere_count):
+    #     for j in range(sphere_count):
+    #         x = (i - (sphere_count - 1) / 2) * spacing_factor * sphere_radius
+    #         y = (j - (sphere_count - 1) / 2) * spacing_factor * sphere_radius
+
+    #         v = np.random.random()
+    #         mat = core.Material.default_material()
+    #         if v < 1 / 3:  # emissive
+    #             mat.emission_strength = 2 * np.random.random()
+    #             mat.color = Vec3.random_unit().absolute()
+    #         elif v < 2 / 3:  # metallic
+    #             mat.color = Vec3.random_unit().absolute()
+    #             mat.smoothness = np.random.random()
+    #             mat.transmittance = 0
+    #         else:
+    #             mat.color = Vec3.random_unit().absolute()
+    #             mat.smoothness = np.random.random()
+    #             mat.transmittance = np.random.random()
+    #             mat.ior = 1.4
+
+    #         sphere = mesh.Sphere(mat, Vec3(x, y, 0), sphere_radius)
+    #         scene.add_object(sphere)
+
+    # ------------------------------------------------------------------------
+    # Set up Camera and Environment
+    # ------------------------------------------------------------------------
+    # distance = (scene_width / (2 * np.tan(fov / 2))) * margin
+    # scene.camera = raytracing.Camera(Vec3(0, 0, -distance), fov, Vec3(0))
+    # scene.get_environment = sample_sky_map
+
+    from scenes import room
+
+    # ------------------------------------------------------------------------
+    # Pygame Screen Setup and Time Tracking
+    # ------------------------------------------------------------------------
+    WIDTH, HEIGHT = (1600, 400)
+    screen = pg.display.set_mode((WIDTH, HEIGHT))
     clock = pg.time.Clock()
     t = 0
     dt = 0
     total_time = 0
 
-    global sky_map, SKY_MAP_W, SKY_MAP_H
-    sky_map = pg.image.load("./assets/skyboxes/skybox1.png").convert()
-    SKY_MAP_W = sky_map.get_width()
-    SKY_MAP_H = sky_map.get_height()
+    # scene = room.get_scene()
+    scene = raytracing.Scene()
 
-    scene = Scene()
+    # scene.get_environment = sample_sky_map
 
-    scene.get_environment = sample_sky_map
-
-    s = objects.Sphere(Material.default_material(), Vec3(0, -100000, 0), 100000)
+    s = mesh.Sphere(Material.default_material(), Vec3(0, -100000, 0), 100000)
     s.material.color = Vec3(1)
     s.material.smoothness = 0
     s.material.emission_strength = 0
     s.material.transmittance = 0
     scene.add_object(s)
 
-    s = objects.Sphere(Material.default_material(), Vec3(5000), 5000)
+    s = mesh.Sphere(Material.default_material(), Vec3(5000), 5000)
     s.material.color = Vec3(1)
     s.material.smoothness = 0
     s.material.emission_strength = 1
@@ -140,7 +127,7 @@ def main():
 
     for p, r in zip(positions, radii):
         p.y += r
-        s = objects.Sphere(Material.default_material(), p, r)
+        s = mesh.Sphere(Material.default_material(), p, r)
 
         v = np.random.random()
         if v < 1 / 3:
@@ -164,67 +151,80 @@ def main():
 
         scene.add_object(s)
 
-    scene.camera = Camera(
-        Vec3(0, 0, 5),  # Camera position
+    scene.camera = raytracing.Camera(
+        Vec3(0, 15, 100),  # Camera position
         np.pi / 2,  # Field of view
-        Vec3(0, 0, 0),  # Look-at point
+        Vec3(0, 0, 30),  # Look-at point
         dof_strength=0.01,
         dof_dist=10,
     )
 
-    render_settings = RenderSettings(scene, int(800), int(400), 30, 4)
-    renderer = Renderer()
-    post_processing = PostProcessing()
+    # ------------------------------------------------------------------------
+    # Render Settings and Renderer Setup
+    # ------------------------------------------------------------------------
+    render_settings = raytracing.RenderSettings(scene, 800, 200, 100, 4)
+    renderer = raytracing.Renderer()
+    post_processor = post_processing.PostProcessing()
+    post_processor.exposure = 2
+    post_processor.brightness = 0.02
+    post_processor.contrast = 1.1
+    render_result = renderer.start_render(render_settings, 16, 4)
+    post_processed_img_arr = render_result.img_arr.copy()
 
-    render_result = renderer.start_render(render_settings, 3, 4)
-    # render_result = renderer.start_render(render_settings)
-    processed_result = np.zeros_like(render_result.img_arr)
+    # # Load skybox image and related globals
+    # global sky_map, SKY_MAP_W, SKY_MAP_H
+    # sky_map = pg.image.load("./assets/skyboxes/skybox1.png").convert()
+    # SKY_MAP_W = sky_map.get_width()
+    # SKY_MAP_H = sky_map.get_height()
 
-    def callback(*args, **kwargs):
-        nonlocal render_result
-        render_result.update_views()
+    # ------------------------------------------------------------------------
+    # Post-Processing Callback Function
+    # ------------------------------------------------------------------------
+    def update_post_processing():
+        nonlocal post_processed_img_arr
+        while not renderer.stop_event.is_set():
+            render_result.update_views()
+            post_processed_img_arr = post_processor.process(render_result.img_arr)
 
-    post_processing_thread = continuous_post_processing(
-        render_result.img_arr, processed_result, post_processing, callback=callback
-    )
+    # Start post-processing thread
+    pp_thread = Thread(target=update_post_processing, daemon=True)
+    pp_thread.start()
 
+    # ------------------------------------------------------------------------
+    # Main Loop: Event Handling, Rendering Updates, and Display
+    # ------------------------------------------------------------------------
     saved = False
     while True:
         t += dt
         if not render_result.finished:
             total_time = t / (render_result.progress + 1e-9)
 
+        # Handle Pygame events
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 renderer.stop_render()
                 pg.quit()
                 sys.exit()
+
+        # Save the render once finished
         if render_result.finished and not saved:
             render_result.update_views()
-            render_result.img_arr.tofile(
-                f"image_{render_result.WIDTH}x{render_result.HEIGHT}_{render_result.img_arr.dtype}.raw"
+            filename = datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".png"
+            img_surface = pg.surfarray.make_surface(
+                post_processor.process(render_result.img_arr) * 255
             )
-
-            pg.image.save(
-                pg.surfarray.make_surface(
-                    post_processing.process(render_result.img_arr) * 255
-                ),
-                f"./renders/{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.png",
-            )
-
-            img = Image.fromarray(render_result.img_arr.astype(np.uint8))
-            img.save("full_dynamic_range.tiff", format="TIFF")
+            pg.image.save(img_surface, f"./renders/{filename}")
             saved = True
 
-        img = pg.surfarray.make_surface(processed_result * 255)
-        scaled_img = pg.transform.scale(
-            img,
-            RES,
-        )
+        # Update display with post-processed image
+        img = pg.surfarray.make_surface(post_processed_img_arr * 255)
+        scaled_img = pg.transform.scale(img, (WIDTH, HEIGHT))
         screen.blit(scaled_img, (0, 0))
 
+        # Update window caption with progress information
         pg.display.set_caption(
-            f"rendering: {render_result.progress_percent:.4f}%, estimated {convert_seconds(t)} / {convert_seconds(total_time)}"
+            f"rendering: {render_result.progress_percent:.4f}%, "
+            f"estimated {convert_seconds(t)} / {convert_seconds(total_time)}"
         )
 
         pg.display.update()

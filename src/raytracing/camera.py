@@ -2,8 +2,7 @@ import random
 
 import numpy as np
 
-from src.ray import Ray
-from src.util import Vec3
+from src.core import Ray, Vec3
 
 
 class Camera:

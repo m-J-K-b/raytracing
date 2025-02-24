@@ -1,9 +1,7 @@
-from typing import List
-
 import numpy as np
 import pygame as pg
 
-from src.util import Vec3
+from src.core import Vec3
 
 
 class RenderResult:

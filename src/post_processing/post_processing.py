@@ -2,7 +2,7 @@ from threading import Thread
 
 import numpy as np
 
-from src.util import lerp
+from src.core.util import lerp
 
 
 class PostProcessing:

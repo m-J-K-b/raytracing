@@ -1,11 +1,4 @@
-from src import objects, util
-from src.camera import Camera
-from src.hit_info import HitInfo
-from src.material import Material
-from src.post_processing import PostProcessing
-from src.ray import Ray
-from src.render_result import RenderResult
-from src.render_settings import RenderSettings
-from src.renderer import Renderer
-from src.scene import Scene
-from src.util import Vec3
+import src.core as core
+import src.mesh as mesh
+import src.post_processing as post_processing
+import src.raytracing as raytracing

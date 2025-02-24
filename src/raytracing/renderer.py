@@ -4,19 +4,11 @@ from typing import List, Tuple
 
 import numpy as np
 
-from src.ray import Ray
-from src.render_result import RenderResult
-from src.render_settings import RenderSettings
-from src.scene import Scene
-from src.util import (
-    Vec3,
-    lerp,
-    random_hemisphere_sample,
-    refract,
-    schlick_approximation,
-)
-
-# Assuming necessary imports for Ray, RenderResult, RenderSettings, Scene, Vec3, etc.
+from src.core import Ray, Vec3
+from src.raytracing.render_result import RenderResult
+from src.raytracing.render_settings import RenderSettings
+from src.raytracing.scene import Scene
+from src.raytracing.util import random_hemisphere_sample, refract, schlick_approximation
 
 
 class Renderer:
@@ -50,29 +42,25 @@ class Renderer:
             hit_info.normal = -hit_info.normal
             ior = hit_obj.material.ior
 
-        # Compute the Lambertian cosine factor.
-        # Ensure cos_theta is non-negative.
-        cos_theta = max(hit_info.normal.dot(-ray.direction), 0.0)
-
-        # If the surface is emissive, return its emitted light immediately.
         if hit_obj.material.emission_strength > 0:
             emitted_light = hit_obj.material.color * hit_obj.material.emission_strength
-            # Optionally modulate the emission by the cosine factor if desired.
             return incoming_light + ray_color.prod(emitted_light)
 
-        # Update the ray color with the material color.
-        # Optionally, incorporate the cosine term here:
-        ray_color = ray_color.prod(hit_obj.material.color) * cos_theta
+        ray_color = ray_color.prod(hit_obj.material.color)
 
         reflection_direction = ray.direction.reflect(hit_info.normal)
         fresnel = schlick_approximation(
             -ray.direction, hit_info.normal, hit_obj.material.ior
         )
 
+        cos_theta = max(hit_info.normal.dot(-ray.direction), 0.0)
         sin_theta = np.sqrt(max(0.0, 1.0 - cos_theta * cos_theta))
         cannot_refract = ior * sin_theta > 1.0
 
-        if cannot_refract or np.random.random() < fresnel:
+        if (
+            cannot_refract
+            or np.random.random() * hit_obj.material.transmittance < fresnel
+        ):
             if np.random.random() < hit_obj.material.smoothness:
                 new_ray_direction = reflection_direction
             else:

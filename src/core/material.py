@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import copy
 
-from src.util import Vec3
+from src.core.vec3 import Vec3
 
 
 class Material:

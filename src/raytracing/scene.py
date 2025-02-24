@@ -4,11 +4,10 @@ from typing import List
 import numpy as np
 import pygame as pg
 
-from src.camera import Camera
-from src.hit_info import HitInfo
-from src.objects.base import ObjectBase
-from src.ray import Ray
-from src.util import Vec3, vec_to_sky_coords
+from src.core import HitInfo, Ray, Vec3
+from src.mesh import ObjectBase
+from src.raytracing.camera import Camera
+from src.raytracing.util import vec_to_sky_coords
 
 
 class Scene:
