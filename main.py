@@ -109,46 +109,60 @@ def main():
 
     scene.get_environment = sample_sky_map
 
-    # Sphere 1: Reflective Red Sphere
-    sphere1 = objects.Sphere(Material.default_material(), Vec3(-1, 0, 0), 1)
-    sphere1.material.color = Vec3(1, 0, 0)  # Red
-    sphere1.material.transmittance = 0.0
-    sphere1.material.smoothness = 0.9
-    sphere1.material.ior = 1.5  # Reflective
-    scene.add_object(sphere1)
+    s = objects.Sphere(Material.default_material(), Vec3(0, -100000, 0), 100000)
+    s.material.color = Vec3(1)
+    s.material.smoothness = 0
+    s.material.emission_strength = 0
+    s.material.transmittance = 0
+    scene.add_object(s)
 
-    # Sphere 2: Transparent Blue Sphere
-    sphere2 = objects.Sphere(Material.default_material(), Vec3(-3, 0, 0), 1)
-    sphere2.material.color = Vec3(0, 0, 1)  # Blue
-    sphere2.material.transmittance = 0.8  # Transparent
-    sphere2.material.smoothness = 0.1
-    sphere2.material.ior = 1.33  # Glass-like
-    scene.add_object(sphere2)
+    s = objects.Sphere(Material.default_material(), Vec3(5000), 5000)
+    s.material.color = Vec3(1)
+    s.material.smoothness = 0
+    s.material.emission_strength = 1
+    s.material.transmittance = 0
+    scene.add_object(s)
 
-    # Sphere 3: Matte Green Sphere
-    sphere3 = objects.Sphere(Material.default_material(), Vec3(1, 0, 0), 1)
-    sphere3.material.color = Vec3(0, 1, 0)  # Green
-    sphere3.material.transmittance = 0.0
-    sphere3.material.smoothness = 0.0  # Matte
-    sphere3.material.ior = 1.0
-    scene.add_object(sphere3)
+    positions = []
+    radii = []
+    while len(positions) < 200:
+        p = Vec3.random_unit().elementwise() * Vec3(1, 0, 1) * 100
+        r = 1 / (np.random.random() + 0.95) ** 17 + 1.5
+        valid = True
+        for p1, r1 in zip(positions, radii):
+            if (p1 - p).magnitude() < r + r1:
+                valid = False
+                break
+        if not valid:
+            continue  # Skip adding this sphere and try again.
+        positions.append(p)
+        radii.append(r)
 
-    # Sphere 4: Emissive Yellow Sphere
-    sphere4 = objects.Sphere(Material.default_material(), Vec3(3, 0, 0), 1)
-    sphere4.material.color = Vec3(1, 1, 0)  # Yellow
-    sphere4.material.transmittance = 0.0
-    sphere4.material.smoothness = 0.0
-    sphere4.material.ior = 1.0
-    sphere4.material.emission_strength = 1.0  # Emits light
-    scene.add_object(sphere4)
+    for p, r in zip(positions, radii):
+        p.y += r
+        s = objects.Sphere(Material.default_material(), p, r)
 
-    sphere5 = objects.Sphere(Material.default_material(), Vec3(0, -101, 0), 100)
-    sphere5.material.color = Vec3(1, 1, 1)  # Yellow
-    sphere5.material.transmittance = 0.0
-    sphere5.material.smoothness = 0.0
-    sphere5.material.ior = 1.0
-    sphere5.material.emission_strength = 0.0  # Emits light
-    scene.add_object(sphere5)
+        v = np.random.random()
+        if v < 1 / 3:
+            print("metal")
+            s.material.color = Vec3.random_unit().absolute()
+            s.material.smoothness = np.random.random() * 0.8 + 0.1
+            s.material.emission_strength = 0
+            s.material.transmittance = 0
+        elif v < 2 / 3:
+            print("emissive")
+            s.material.color = Vec3.random_unit().absolute()
+            s.material.smoothness = 0
+            s.material.emission_strength = np.random.random() + 0.5
+            s.material.transmittance = 0
+        else:
+            print("glass")
+            s.material.color = Vec3(1)
+            s.material.smoothness = 0
+            s.material.emission_strength = 0
+            s.material.transmittance = np.random.random() * 0.5 + 0.5
+
+        scene.add_object(s)
 
     scene.camera = Camera(
         Vec3(0, 0, 5),  # Camera position

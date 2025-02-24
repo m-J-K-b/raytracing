@@ -43,26 +43,35 @@ class Renderer:
 
         hit_info = hits[0]
         hit_obj = hit_info.obj
+
+        # Adjust the normal and index-of-refraction if the ray is inside the object.
         ior = 1 / hit_obj.material.ior
         if ray.inside:
             hit_info.normal = -hit_info.normal
             ior = hit_obj.material.ior
 
+        # Compute the Lambertian cosine factor.
+        # Ensure cos_theta is non-negative.
+        cos_theta = max(hit_info.normal.dot(-ray.direction), 0.0)
+
+        # If the surface is emissive, return its emitted light immediately.
         if hit_obj.material.emission_strength > 0:
             emitted_light = hit_obj.material.color * hit_obj.material.emission_strength
-            incoming_light += ray_color.prod(emitted_light)
+            # Optionally modulate the emission by the cosine factor if desired.
+            return incoming_light + ray_color.prod(emitted_light)
 
-        ray_color = ray_color.prod(hit_obj.material.color)
+        # Update the ray color with the material color.
+        # Optionally, incorporate the cosine term here:
+        ray_color = ray_color.prod(hit_obj.material.color) * cos_theta
 
         reflection_direction = ray.direction.reflect(hit_info.normal)
         fresnel = schlick_approximation(
             -ray.direction, hit_info.normal, hit_obj.material.ior
         )
 
-        cos_theta = min(hit_info.normal.dot(-ray.direction), 1.0)
-        sin_theta = np.sqrt(1.0 - cos_theta * cos_theta)
-
+        sin_theta = np.sqrt(max(0.0, 1.0 - cos_theta * cos_theta))
         cannot_refract = ior * sin_theta > 1.0
+
         if cannot_refract or np.random.random() < fresnel:
             if np.random.random() < hit_obj.material.smoothness:
                 new_ray_direction = reflection_direction
@@ -72,12 +81,13 @@ class Renderer:
             new_ray_direction = refract(ray.direction, hit_info.normal, ior)
             ray.inside = not ray.inside
 
+        # Recursive call to gather the reflected/refracted light.
         reflected_light = self.raytrace(
             Ray(hit_info.pos, new_ray_direction, inside=ray.inside),
             depth=depth + 1,
         )
-        incoming_light += ray_color.prod(reflected_light)
 
+        incoming_light += ray_color.prod(reflected_light)
         return incoming_light
 
     def init_render(self, render_settings: RenderSettings) -> None:
